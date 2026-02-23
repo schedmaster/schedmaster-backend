@@ -1,4 +1,4 @@
-const db = require('../services/db');
+const prisma = require('../../prisma/client');
 const bcrypt = require('bcrypt');
 
 // CONSTANTES Y CONFIGURACIÓN
@@ -47,26 +47,26 @@ const isAllowedDomain = (email) => {
 
 /**
  * Verifica si un correo ya existe en la base de datos
- * @param {Connection} conn 
+ * @param {PrismaClient} prisma 
  * @param {string} email 
  * @returns {Promise<boolean>}
  */
-const emailExists = async (conn, email) => {
-  const [rows] = await conn.query(
-    'SELECT id_usuario FROM usuarios WHERE correo = ?',
-    [email]
-  );
-  return rows.length > 0;
+const emailExists = async (prisma, email) => {
+  const user = await prisma.usuario.findUnique({
+    where: { correo: email },
+    select: { id_usuario: true }
+  });
+  return !!user;
 };
 
 /**
  * Valida el correo para registro (formato + duplicados)
  * Strategy Pattern: encapsula la lógica de validación
- * @param {Connection} conn 
+ * @param {PrismaClient} prisma 
  * @param {string} email 
  * @returns {Promise<Object>}
  */
-const validateEmailForRegistration = async (conn, email) => {
+const validateEmailForRegistration = async (prisma, email) => {
   const normalizedEmail = normalizeEmail(email);
   
   // Validación de formato
@@ -88,7 +88,7 @@ const validateEmailForRegistration = async (conn, email) => {
   }
   
   // Validación de duplicados
-  const exists = await emailExists(conn, normalizedEmail);
+  const exists = await emailExists(prisma, normalizedEmail);
   if (exists) {
     return {
       isValid: false,
@@ -107,8 +107,6 @@ const validateEmailForRegistration = async (conn, email) => {
 
 // REGISTER
 exports.register = async (req, res) => {
-  const conn = await db.getConnection();
-
   try {
     const {
       nombre,
@@ -122,13 +120,10 @@ exports.register = async (req, res) => {
       id_rol,
     } = req.body;
 
-    await conn.beginTransaction();
-
     // Validar correo usando Strategy
-    const emailValidation = await validateEmailForRegistration(conn, correo);
+    const emailValidation = await validateEmailForRegistration(prisma, correo);
     
     if (!emailValidation.isValid) {
-      await conn.rollback();
       return res.status(emailValidation.statusCode).json({
         message: emailValidation.error,
       });
@@ -137,49 +132,46 @@ exports.register = async (req, res) => {
     // Hash de contraseña
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insertar usuario con email normalizado
-    const [result] = await conn.query(
-      `INSERT INTO usuarios
-      (nombre, apellido_paterno, apellido_materno, correo, contraseña, id_carrera, id_division, cuatrimestre, id_rol)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        nombre,
-        apellido_paterno,
-        apellido_materno,
-        emailValidation.normalizedEmail,
-        hashedPassword,
-        id_carrera || null,
-        id_division || null,
-        cuatrimestre,
-        id_rol,
-      ]
-    );
+    // Transacción Prisma
+    await prisma.$transaction(async (tx) => {
 
-    const idUsuario = result.insertId;
+      // Insertar usuario con email normalizado
+      const user = await tx.usuario.create({
+        data: {
+          nombre,
+          apellido_paterno,
+          apellido_materno,
+          correo: emailValidation.normalizedEmail,
+          contrasena: hashedPassword,
+          id_carrera: id_carrera || null,
+          id_division: id_division || null,
+          cuatrimestre,
+          id_rol,
+        }
+      });
 
-    // Crear inscripción pendiente
-    await conn.query(
-      `INSERT INTO inscripciones
-      (id_usuario, fecha_inscripcion, estado, prioridad)
-      VALUES (?, CURDATE(), 'pendiente', 'normal')`,
-      [idUsuario]
-    );
+      // Crear inscripción pendiente
+      await tx.inscripcion.create({
+        data: {
+          id_usuario: user.id_usuario,
+          fecha_inscripcion: new Date(),
+          estado: 'pendiente',
+          prioridad: 'normal'
+        }
+      });
 
-    await conn.commit();
+    });
 
     res.json({
       message: ERROR_MESSAGES.REGISTRATION_SUCCESS,
     });
     
   } catch (error) {
-    await conn.rollback();
     console.error('Error en registro:', error);
     res.status(500).json({ 
       message: 'Error interno del servidor',
       ...(process.env.NODE_ENV === 'development' && { error: error.message })
     });
-  } finally {
-    conn.release();
   }
 };
 
@@ -187,33 +179,36 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { correo, password } = req.body;
-    
+    console.log('PRISMA INSTANCE 👉', prisma);
     // Normalizar email para búsqueda
     const normalizedEmail = normalizeEmail(correo);
 
-    const [rows] = await db.query(
-      `SELECT u.*, i.estado
-       FROM usuarios u
-       JOIN inscripciones i ON i.id_usuario = u.id_usuario
-       WHERE u.correo = ?`,
-      [normalizedEmail]
-    );
+    const user = await prisma.usuario.findUnique({
+      where: { correo: normalizedEmail },
+      include: {
+        inscripciones: true
+      }
+    });
 
-    if (rows.length === 0) {
+    if (!user) {
       return res.status(404).json({ 
         message: ERROR_MESSAGES.USER_NOT_FOUND 
       });
     }
 
-    const user = rows[0];
+    const estado = user.inscripciones?.[0]?.estado;
 
-    if (user.estado !== 'aprobado') {
-      return res.status(403).json({
-        message: ERROR_MESSAGES.PENDING_APPROVAL,
-      });
-    }
+// Roles que requieren aprobación (ejemplo: solo rol 1 y 2)
+const ROLES_SIN_APROBACION = [3, 4];
 
-    const match = await bcrypt.compare(password, user.contraseña);
+if (!ROLES_SIN_APROBACION.includes(user.id_rol)) {
+  if (estado !== 'aprobado') {
+    return res.status(403).json({
+      message: ERROR_MESSAGES.PENDING_APPROVAL,
+    });
+  }
+}
+    const match = await bcrypt.compare(password, user.contrasena);
 
     if (!match) {
       return res.status(401).json({ 

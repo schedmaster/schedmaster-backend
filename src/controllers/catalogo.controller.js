@@ -1,28 +1,37 @@
-// src/controllers/catalogo.controller.js
-const db = require('../services/db');
+const prisma = require('../../prisma/client');
 
 exports.getDivisiones = async (req, res) => {
   try {
-    const [rows] = await db.execute(
-      'SELECT id_division, siglas, nombre_division FROM divisiones'
-    );
-    res.json(rows);
+    const divisiones = await prisma.division.findMany({
+      select: {
+        id_division: true,
+        siglas: true,
+        nombre_division: true
+      }
+    })
+
+    res.json(divisiones)
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error obteniendo divisiones' });
+    console.error(error)
+    res.status(500).json({ message: 'Error obteniendo divisiones' })
   }
-};
+}
 
 exports.getCarrerasByDivision = async (req, res) => {
-  const id_division = req.params.id_division;
   try {
-    const [rows] = await db.execute(
-      'SELECT id_carrera, nombre_carrera FROM carreras WHERE id_division = ?',
-      [id_division]
-    );
-    res.json(rows);
+    const id_division = parseInt(req.params.id_division)
+
+    const carreras = await prisma.carrera.findMany({
+      where: { id_division },
+      select: {
+        id_carrera: true,
+        nombre_carrera: true
+      }
+    })
+
+    res.json(carreras)
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error obteniendo carreras' });
+    console.error(error)
+    res.status(500).json({ message: 'Error obteniendo carreras' })
   }
-};
+}

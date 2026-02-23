@@ -7,6 +7,9 @@
     "dev": "nodemon index.js",
     "start": "node index.js"
   },
+  "prisma": {
+  "seed": "node prisma/seed.js"
+},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RicardoR202417/schedmaster-backend.git"
@@ -20,13 +23,15 @@
   },
   "homepage": "https://github.com/RicardoR202417/schedmaster-backend#readme",
   "dependencies": {
+    "@prisma/client": "^5.22.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.17.2"
+    "mysql2": "^3.17.2",
+    "prisma": "^5.22.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"

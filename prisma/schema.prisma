@@ -1,0 +1,125 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+generator client {
+  provider = "prisma-client-js"
+}
+
+// tus modelos aquí...
+
+model Rol {
+  id_rol      Int       @id @default(autoincrement())
+  nombre_rol  String
+  descripcion String
+  usuarios    Usuario[]
+}
+
+model Division {
+  id_division     Int       @id @default(autoincrement())
+  nombre_division String
+  siglas          String
+
+  carreras Carrera[]
+  usuarios Usuario[]
+}
+
+model Carrera {
+  id_carrera     Int      @id @default(autoincrement())
+  nombre_carrera String
+  modalidad      String?
+  id_division    Int
+
+  division Division @relation(fields: [id_division], references: [id_division])
+  usuarios Usuario[]
+}
+
+model Usuario {
+  id_usuario       Int     @id @default(autoincrement())
+  nombre           String
+  apellido_paterno String
+  apellido_materno String
+  correo           String  @unique
+  contrasena       String
+  id_carrera       Int?
+  id_division      Int?
+  cuatrimestre     Int     @default(1)
+  id_rol           Int
+  activo           Boolean @default(true)
+
+  rol      Rol       @relation(fields: [id_rol], references: [id_rol])
+  carrera  Carrera?  @relation(fields: [id_carrera], references: [id_carrera])
+  division Division? @relation(fields: [id_division], references: [id_division])
+
+  // 🔹 relaciones inversas
+  periodosEntrenador   Periodo[]       @relation("PeriodoEntrenador")
+  inscripciones        Inscripcion[]   @relation("UsuarioInscripciones")
+  inscripcionesAprobadas Inscripcion[] @relation("UsuarioAprobador")
+  asistencias          Asistencia[]    @relation("AsistenciaUsuario")
+  asistenciasRegistradas Asistencia[]  @relation("AsistenciaRegistrador")
+}
+
+model Periodo {
+  id_periodo                Int      @id @default(autoincrement())
+  nombre_periodo            String
+  fecha_inicio_inscripcion  DateTime
+  fecha_fin_inscripcion     DateTime
+  fecha_inicio_actividades  DateTime
+  fecha_fin_periodo         DateTime
+  estado                    String
+  id_entrenador             Int
+
+  entrenador Usuario @relation("PeriodoEntrenador", fields: [id_entrenador], references: [id_usuario])
+
+  horarios      Horario[]
+  inscripciones Inscripcion[]
+}
+
+model Horario {
+  id_horario        Int @id @default(autoincrement())
+  id_periodo        Int
+  dia_semana        String
+  hora_inicio       DateTime
+  hora_fin          DateTime
+  tipo_actividad    String?
+  capacidad_maxima  Int
+
+  periodo Periodo @relation(fields: [id_periodo], references: [id_periodo])
+
+  inscripciones Inscripcion[]
+  asistencias   Asistencia[]
+}
+
+model Inscripcion {
+  id_inscripcion     Int @id @default(autoincrement())
+  id_usuario         Int
+  id_horario         Int
+  id_periodo         Int
+  fecha_inscripcion  DateTime
+  estado             String
+  prioridad          String
+  id_aprobador       Int?
+  fecha_decision     DateTime?
+
+  usuario   Usuario @relation("UsuarioInscripciones", fields: [id_usuario], references: [id_usuario])
+  horario   Horario @relation(fields: [id_horario], references: [id_horario])
+  periodo   Periodo @relation(fields: [id_periodo], references: [id_periodo])
+  aprobador Usuario? @relation("UsuarioAprobador", fields: [id_aprobador], references: [id_usuario])
+
+  asistencias Asistencia[]
+}
+
+model Asistencia {
+  id_asistencia      Int @id @default(autoincrement())
+  id_usuario         Int
+  id_inscripcion     Int
+  id_horario         Int
+  fecha              DateTime
+  asistio            Boolean
+  id_registrado_por  Int
+
+  usuario        Usuario @relation("AsistenciaUsuario", fields: [id_usuario], references: [id_usuario])
+  registrador    Usuario @relation("AsistenciaRegistrador", fields: [id_registrado_por], references: [id_usuario])
+  inscripcion    Inscripcion @relation(fields: [id_inscripcion], references: [id_inscripcion])
+  horario        Horario @relation(fields: [id_horario], references: [id_horario])
+}
