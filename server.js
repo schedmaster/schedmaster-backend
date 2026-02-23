@@ -6,7 +6,7 @@ const { PrismaClient } = require('@prisma/client');
 // 🔹 Importar rutas
 const authRoutes = require('./src/routes/auth.routes');
 const catalogoRoutes = require('./src/routes/catalogo.routes');
-
+const horarioRoutes = require('./src/routes/horario.routes');
 const app = express();
 const prisma = new PrismaClient();
 
@@ -17,6 +17,7 @@ app.use(express.json());
 // rutas principales
 app.use('/api/auth', authRoutes);
 app.use('/api/catalogo', catalogoRoutes);
+app.use('/api/horarios', horarioRoutes);
 
 //Ruta de prueba
 app.get('/test', async (req, res) => {
