@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
 
-const horarioController = require('../controllers/horario.controller');
+const horarioController = require('../controllers/horario.controller'); // 👈 ESTA LÍNEA FALTA
 
-// GET horarios
 router.get('/', horarioController.getHorarios);
+router.get('/:id/dias', horarioController.getDiasPorHorario);
 
 module.exports = router;

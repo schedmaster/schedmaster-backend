@@ -13,12 +13,12 @@ exports.register = async (req, res) => {
       id_division,
       cuatrimestre,
       id_rol,
-      id_horario
+      id_horario,
+      dias_seleccionados // 👈 NUEVO
     } = req.body;
 
     const correoNormalizado = correo.toLowerCase().trim();
 
-    // 🔎 verificar duplicado
     const existe = await prisma.usuario.findUnique({
       where: { correo: correoNormalizado }
     });
@@ -31,7 +31,7 @@ exports.register = async (req, res) => {
 
     const nuevoUsuario = await prisma.$transaction(async (tx) => {
 
-      // 🟢 1️⃣ crear usuario
+      // 1️⃣ crear usuario
       const user = await tx.usuario.create({
         data: {
           nombre,
@@ -46,7 +46,7 @@ exports.register = async (req, res) => {
         }
       });
 
-      // 🟢 2️⃣ obtener periodo activo
+      // 2️⃣ periodo activo
       const periodoActivo = await tx.periodo.findFirst({
         where: { estado: 'activo' },
         select: { id_periodo: true }
@@ -56,8 +56,8 @@ exports.register = async (req, res) => {
         throw new Error('No existe un periodo activo');
       }
 
-      // 🟢 3️⃣ crear inscripción
-      await tx.inscripcion.create({
+      // 3️⃣ crear inscripción
+      const inscripcion = await tx.inscripcion.create({
         data: {
           usuario: { connect: { id_usuario: user.id_usuario } },
           horario: { connect: { id_horario: parseInt(id_horario) } },
@@ -67,6 +67,16 @@ exports.register = async (req, res) => {
           prioridad: 'normal'
         }
       });
+
+      // 🟢 4️⃣ guardar días seleccionados
+      if (dias_seleccionados && dias_seleccionados.length > 0) {
+        await tx.inscripcionDia.createMany({
+          data: dias_seleccionados.map(id_dia => ({
+            id_inscripcion: inscripcion.id_inscripcion,
+            id_dia: parseInt(id_dia)
+          }))
+        });
+      }
 
       return user;
     });
