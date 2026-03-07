@@ -8,6 +8,7 @@ const authRoutes = require('./src/routes/auth.routes');
 const catalogoRoutes = require('./src/routes/catalogo.routes');
 const horarioRoutes = require('./src/routes/horario.routes');
 const listaEsperaRoutes = require('./src/routes/listaEspera.routes');
+const inscripcionRoutes = require('./src/routes/inscripcion.routes');
 
 const app = express();
 const prisma = new PrismaClient();
@@ -21,6 +22,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/horarios', horarioRoutes);
 app.use('/api/lista-espera', listaEsperaRoutes);
+app.use('/api/inscripciones', inscripcionRoutes);
 
 //Ruta de prueba
 app.get('/test', async (req, res) => {
