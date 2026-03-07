@@ -58,12 +58,13 @@ model Usuario {
   carrera  Carrera?  @relation(fields: [id_carrera], references: [id_carrera])
   division Division? @relation(fields: [id_division], references: [id_division])
 
-  // 🔹 relaciones inversas
   periodosEntrenador   Periodo[]       @relation("PeriodoEntrenador")
   inscripciones        Inscripcion[]   @relation("UsuarioInscripciones")
   inscripcionesAprobadas Inscripcion[] @relation("UsuarioAprobador")
   asistencias          Asistencia[]    @relation("AsistenciaUsuario")
   asistenciasRegistradas Asistencia[]  @relation("AsistenciaRegistrador")
+
+  asistenciasHistorico AsistenciaHistorico[]
 }
 
 model Periodo {
@@ -159,4 +160,16 @@ model Asistencia {
   registrador    Usuario @relation("AsistenciaRegistrador", fields: [id_registrado_por], references: [id_usuario])
   inscripcion    Inscripcion @relation(fields: [id_inscripcion], references: [id_inscripcion])
   horario        Horario     @relation(fields: [id_horario], references: [id_horario])
+}
+
+model AsistenciaHistorico {
+  id_historico    Int      @id @default(autoincrement())
+  nombre_archivo  String
+  ruta_archivo    String
+  hash_archivo    String   @unique
+  fecha_lista     DateTime
+  fecha_subida    DateTime @default(now())
+  id_usuario      Int
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
 }
