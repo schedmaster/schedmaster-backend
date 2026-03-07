@@ -8,8 +8,8 @@
     "start": "node index.js"
   },
   "prisma": {
-  "seed": "node prisma/seed.js"
-},
+    "seed": "node prisma/seed.js"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/RicardoR202417/schedmaster-backend.git"
@@ -34,6 +34,7 @@
     "mysql2": "^3.17.2"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.11",
+    "prisma": "^5.22.0"
   }
 }
