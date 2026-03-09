@@ -2,7 +2,7 @@ const prisma = require('../../prisma/client');
 
 exports.obtenerPendientes = async (req, res) => {
   try {
-    // 🔥 CORRECCIÓN: Buscamos inactivos y le pedimos a Prisma su historial de asistencias
+    // CORRECCIÓN: Buscamos inactivos y le pedimos a Prisma su historial de asistencias
     const usuariosPendientes = await prisma.usuario.findMany({
       where: {
         activo: false 
@@ -17,7 +17,7 @@ exports.obtenerPendientes = async (req, res) => {
     // Formateamos los datos y calculamos la prioridad inteligentemente
     const datosFormateados = usuariosPendientes.map(user => {
       
-      // 🧠 LÓGICA DE PRIORIDAD:
+      // LÓGICA DE PRIORIDAD:
       // Contamos cuántas asistencias tiene registradas. Si no tiene historial, es 0.
       const totalAsistencias = user.asistencias ? user.asistencias.length : 0;
       
@@ -34,7 +34,7 @@ exports.obtenerPendientes = async (req, res) => {
         division: 'DTAI', 
         carrera: 'Ingeniería',
         cuatrimestre: user.cuatrimestre ? user.cuatrimestre.toString() : '1',
-        prioridad: prioridadCalculada, // 👈 La prioridad ahora se calcula sola
+        prioridad: prioridadCalculada, // La prioridad ahora se calcula sola
         registro: 'Reciente'
       };
     });

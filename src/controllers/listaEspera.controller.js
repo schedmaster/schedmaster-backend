@@ -8,7 +8,7 @@ exports.registrarCorreo = async (req, res) => {
       return res.status(400).json({ message: 'Correo requerido' });
     }
 
-    // 🔎 verificar si hay periodo activo
+    // verificar si hay periodo activo
     const periodoActivo = await prisma.periodo.findFirst({
       where: { estado: 'activo' }
     });
@@ -20,7 +20,7 @@ exports.registrarCorreo = async (req, res) => {
   });
 }
 
-    // 🔎 verificar duplicado
+    // verificar duplicado
     const existe = await prisma.listaEspera.findUnique({
       where: { correo }
     });

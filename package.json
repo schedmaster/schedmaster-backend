@@ -2,10 +2,10 @@
   "name": "schedmaster-backend",
   "version": "1.0.0",
   "description": "Este documento define la metodología oficial de trabajo en GitHub para el proyecto **schedMaster**.",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "dev": "nodemon index.js",
-    "start": "node index.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
