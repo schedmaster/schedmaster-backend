@@ -14,7 +14,7 @@ exports.register = async (req, res) => {
       cuatrimestre,
       id_rol,
       id_horario,
-      dias_seleccionados // 👈 NUEVO
+      dias_seleccionados
     } = req.body;
 
     const correoNormalizado = correo.toLowerCase().trim();
@@ -31,7 +31,7 @@ exports.register = async (req, res) => {
 
     const nuevoUsuario = await prisma.$transaction(async (tx) => {
 
-      // 1️⃣ crear usuario
+      // 1️⃣ crear usuario (AHORA NACE INACTIVO POR DEFECTO)
       const user = await tx.usuario.create({
         data: {
           nombre,
@@ -42,7 +42,8 @@ exports.register = async (req, res) => {
           id_carrera: id_carrera ? parseInt(id_carrera) : null,
           id_division: id_division ? parseInt(id_division) : null,
           cuatrimestre: cuatrimestre ? parseInt(cuatrimestre) : 1,
-          id_rol: parseInt(id_rol)
+          id_rol: parseInt(id_rol),
+          activo: false // 👈 EL CANDADO MÁGICO: Esto bloquea el acceso directo
         }
       });
 
@@ -56,7 +57,7 @@ exports.register = async (req, res) => {
         throw new Error('No existe un periodo activo');
       }
 
-      // 3️⃣ crear inscripción
+      // 3️⃣ crear inscripción (Nace como PENDIENTE)
       const inscripcion = await tx.inscripcion.create({
         data: {
           usuario: { connect: { id_usuario: user.id_usuario } },
