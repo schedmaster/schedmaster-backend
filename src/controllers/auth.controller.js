@@ -44,7 +44,8 @@ exports.register = async (req, res) => {
           id_carrera: id_carrera ? parseInt(id_carrera) : null,
           id_division: id_division ? parseInt(id_division) : null,
           cuatrimestre: cuatrimestre ? parseInt(cuatrimestre) : 1,
-          id_rol: parseInt(id_rol)
+          id_rol: parseInt(id_rol),
+          activo: false // 👈 EL CANDADO MÁGICO: Esto bloquea el acceso directo
         }
       });
 
