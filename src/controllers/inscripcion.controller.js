@@ -4,12 +4,14 @@ exports.obtenerPendientes = async (req, res) => {
 
     const pendientes = await prisma.inscripcion.findMany({
       where: {
-        estado: 'pendiente'
+        estado: 'pendiente' 
       },
       include: {
-        usuario: {
+        usuario: true,
+        horario: true,
+        diasSeleccionados: { // 👈 ¡AQUÍ ESTABA EL ERROR! Ahora usa el nombre correcto
           include: {
-            asistencias: true
+            dia: true
           }
         }
       }
@@ -43,22 +45,27 @@ exports.obtenerPendientes = async (req, res) => {
     res.status(200).json(datosFormateados);
 
   } catch (error) {
-    console.error('Error al obtener pendientes:', error);
+    console.error('Error al obtener inscripciones:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
 
 exports.aceptarInscripcion = async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id_inscripcion } = req.body; 
     
-    // Al aceptar, le cambiamos el activo a 'true'
+    const insc = await prisma.inscripcion.update({
+      where: { id_inscripcion: parseInt(id_inscripcion) },
+      data: { estado: 'aprobado' },
+      include: { usuario: true }
+    });
+
     await prisma.usuario.update({
-      where: { id_usuario: parseInt(id) },
+      where: { id_usuario: insc.id_usuario },
       data: { activo: true }
     });
 
-    res.status(200).json({ message: 'Usuario aprobado exitosamente' });
+    res.status(200).json({ message: 'Inscripción aprobada exitosamente' });
   } catch (error) {
     console.error('Error al aceptar:', error);
     res.status(500).json({ message: 'Error al aceptar la inscripción' });
@@ -67,14 +74,14 @@ exports.aceptarInscripcion = async (req, res) => {
 
 exports.rechazarInscripcion = async (req, res) => {
   try {
-    const { id } = req.body;
+    const { id_inscripcion } = req.body;
     
-    // Al rechazar, eliminamos ese registro de prueba
-    await prisma.usuario.delete({
-      where: { id_usuario: parseInt(id) }
+    await prisma.inscripcion.update({
+      where: { id_inscripcion: parseInt(id_inscripcion) },
+      data: { estado: 'rechazado' }
     });
 
-    res.status(200).json({ message: 'Usuario rechazado' });
+    res.status(200).json({ message: 'Inscripción rechazada' });
   } catch (error) {
     console.error('Error al rechazar:', error);
     res.status(500).json({ message: 'Error al rechazar la inscripción' });
