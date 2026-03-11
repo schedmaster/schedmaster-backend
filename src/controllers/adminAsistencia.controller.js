@@ -62,3 +62,32 @@ message:"Error al subir archivo"
 }
 
 }
+
+
+/* ==========================
+   OBTENER HISTORICO
+========================== */
+
+exports.obtenerHistorico = async (req,res)=>{
+
+try{
+
+const historico = await prisma.asistenciaHistorico.findMany({
+orderBy:{
+fecha_lista:"desc"
+}
+})
+
+res.json(historico)
+
+}catch(error){
+
+console.error(error)
+
+res.status(500).json({
+message:"Error al obtener histórico"
+})
+
+}
+
+}

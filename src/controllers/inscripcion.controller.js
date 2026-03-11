@@ -1,45 +1,47 @@
 const prisma = require('../../prisma/client');
-
 exports.obtenerPendientes = async (req, res) => {
   try {
-    // CORRECCIÓN: Buscamos inactivos y le pedimos a Prisma su historial de asistencias
-    const usuariosPendientes = await prisma.usuario.findMany({
+
+    const pendientes = await prisma.inscripcion.findMany({
       where: {
-        activo: false 
+        estado: 'pendiente'
       },
       include: {
-        // IMPORTANTE: Asumimos que la relación en tu schema.prisma se llama "asistencias".
-        // Si se llama distinto (ej. "Asistencia", "registro_gym"), cámbialo aquí abajo.
-        asistencias: true 
+        usuario: {
+          include: {
+            asistencias: true
+          }
+        }
       }
     });
 
-    // Formateamos los datos y calculamos la prioridad inteligentemente
-    const datosFormateados = usuariosPendientes.map(user => {
-      
-      // LÓGICA DE PRIORIDAD:
-      // Contamos cuántas asistencias tiene registradas. Si no tiene historial, es 0.
+    const datosFormateados = pendientes.map(insc => {
+
+      const user = insc.usuario;
+
+      // 🔹 LÓGICA DE PRIORIDAD
       const totalAsistencias = user.asistencias ? user.asistencias.length : 0;
-      
-      // Si tiene más de 3 asistencias, es cliente frecuente (Alta). Si no, es esporádico (Baja).
+
       const prioridadCalculada = totalAsistencias > 3 ? 'alta' : 'baja';
 
       return {
-        id: user.id_usuario,
+        id: insc.id_inscripcion,
         nombre: user.nombre,
         apellido_paterno: user.apellido_paterno,
         apellido_materno: user.apellido_materno,
         correo: user.correo,
-        rol: 'estudiante', 
-        division: 'DTAI', 
+        rol: 'estudiante',
+        division: 'DTAI',
         carrera: 'Ingeniería',
         cuatrimestre: user.cuatrimestre ? user.cuatrimestre.toString() : '1',
-        prioridad: prioridadCalculada, // La prioridad ahora se calcula sola
-        registro: 'Reciente'
+        prioridad: prioridadCalculada,
+        registro: insc.fecha_inscripcion
       };
+
     });
 
     res.status(200).json(datosFormateados);
+
   } catch (error) {
     console.error('Error al obtener pendientes:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
