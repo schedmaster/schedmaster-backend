@@ -1,89 +1,161 @@
-const prisma = require('../../prisma/client');
+const prisma = require('../../prisma/client')
+
+// obtener todas las inscripciones pendientes para que el admin pueda aprobar o rechazar
 exports.obtenerPendientes = async (req, res) => {
   try {
 
-    const pendientes = await prisma.inscripcion.findMany({
+    // buscar inscripciones con estado pendiente
+    const inscripcionesPendientes = await prisma.inscripcion.findMany({
       where: {
-        estado: 'pendiente' 
+        estado: 'pendiente'
       },
       include: {
-        usuario: true,
+        usuario: {
+          include: {
+            asistencias: true
+          }
+        },
         horario: true,
-        diasSeleccionados: { // 👈 ¡AQUÍ ESTABA EL ERROR! Ahora usa el nombre correcto
+        diasSeleccionados: {
           include: {
             dia: true
           }
         }
       }
-    });
+    })
 
-    const datosFormateados = pendientes.map(insc => {
+    // formatear datos para el frontend
+    const datosFormateados = inscripcionesPendientes.map(insc => {
 
-      const user = insc.usuario;
+      // calcular número de asistencias del usuario
+      const totalAsistencias = insc.usuario.asistencias
+        ? insc.usuario.asistencias.length
+        : 0
 
-      // 🔹 LÓGICA DE PRIORIDAD
-      const totalAsistencias = user.asistencias ? user.asistencias.length : 0;
-
-      const prioridadCalculada = totalAsistencias > 3 ? 'alta' : 'baja';
+      // determinar prioridad automáticamente
+      const prioridadCalculada = totalAsistencias > 3 ? 'alta' : 'baja'
 
       return {
-        id: insc.id_inscripcion,
-        nombre: user.nombre,
-        apellido_paterno: user.apellido_paterno,
-        apellido_materno: user.apellido_materno,
-        correo: user.correo,
-        rol: 'estudiante',
-        division: 'DTAI',
-        carrera: 'Ingeniería',
-        cuatrimestre: user.cuatrimestre ? user.cuatrimestre.toString() : '1',
+        id_inscripcion: insc.id_inscripcion,
+
+        usuario: {
+          id_usuario: insc.usuario.id_usuario,
+          nombre: insc.usuario.nombre,
+          apellido_paterno: insc.usuario.apellido_paterno,
+          apellido_materno: insc.usuario.apellido_materno,
+          correo: insc.usuario.correo,
+          id_rol: insc.usuario.id_rol
+        },
+
         prioridad: prioridadCalculada,
-        registro: insc.fecha_inscripcion
-      };
+        estado: insc.estado,
 
-    });
+        // formatear horario para el frontend
+        horario: {
+          hora_inicio: insc.horario.hora_inicio
+            ? insc.horario.hora_inicio.toTimeString().slice(0, 5)
+            : null,
+          hora_fin: insc.horario.hora_fin
+            ? insc.horario.hora_fin.toTimeString().slice(0, 5)
+            : null
+        },
 
-    res.status(200).json(datosFormateados);
+        // enviar días exactamente como el frontend los espera
+        diasSeleccionados: insc.diasSeleccionados
+      }
+    })
+
+    res.status(200).json(datosFormateados)
 
   } catch (error) {
-    console.error('Error al obtener inscripciones:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
+    console.error('error al obtener inscripciones:', error)
+    res.status(500).json({
+      message: 'error interno del servidor'
+    })
   }
-};
+}
 
+
+// aprobar una inscripción pendiente
 exports.aceptarInscripcion = async (req, res) => {
   try {
-    const { id_inscripcion } = req.body; 
-    
-    const insc = await prisma.inscripcion.update({
-      where: { id_inscripcion: parseInt(id_inscripcion) },
-      data: { estado: 'aprobado' },
-      include: { usuario: true }
-    });
 
+    const { id_inscripcion } = req.body
+
+    if (!id_inscripcion) {
+      return res.status(400).json({
+        message: 'id_inscripcion requerido'
+      })
+    }
+
+    // actualizar estado de inscripción
+    const inscripcionActualizada = await prisma.inscripcion.update({
+      where: {
+        id_inscripcion: parseInt(id_inscripcion)
+      },
+      data: {
+        estado: 'aprobado',
+        fecha_decision: new Date()
+      },
+      include: {
+        usuario: true
+      }
+    })
+
+    // activar usuario en el sistema
     await prisma.usuario.update({
-      where: { id_usuario: insc.id_usuario },
-      data: { activo: true }
-    });
+      where: {
+        id_usuario: inscripcionActualizada.usuario.id_usuario
+      },
+      data: {
+        activo: true
+      }
+    })
 
-    res.status(200).json({ message: 'Inscripción aprobada exitosamente' });
+    res.status(200).json({
+      message: 'inscripción aprobada correctamente'
+    })
+
   } catch (error) {
-    console.error('Error al aceptar:', error);
-    res.status(500).json({ message: 'Error al aceptar la inscripción' });
+    console.error('error al aprobar inscripción:', error)
+    res.status(500).json({
+      message: 'error al aprobar la inscripción'
+    })
   }
-};
+}
 
+
+// rechazar una inscripción pendiente
 exports.rechazarInscripcion = async (req, res) => {
   try {
-    const { id_inscripcion } = req.body;
-    
-    await prisma.inscripcion.update({
-      where: { id_inscripcion: parseInt(id_inscripcion) },
-      data: { estado: 'rechazado' }
-    });
 
-    res.status(200).json({ message: 'Inscripción rechazada' });
+    const { id_inscripcion } = req.body
+
+    if (!id_inscripcion) {
+      return res.status(400).json({
+        message: 'id_inscripcion requerido'
+      })
+    }
+
+    // actualizar estado de inscripción
+    await prisma.inscripcion.update({
+      where: {
+        id_inscripcion: parseInt(id_inscripcion)
+      },
+      data: {
+        estado: 'rechazado',
+        fecha_decision: new Date()
+      }
+    })
+
+    res.status(200).json({
+      message: 'inscripción rechazada correctamente'
+    })
+
   } catch (error) {
-    console.error('Error al rechazar:', error);
-    res.status(500).json({ message: 'Error al rechazar la inscripción' });
+    console.error('error al rechazar inscripción:', error)
+    res.status(500).json({
+      message: 'error al rechazar la inscripción'
+    })
   }
-};
+}

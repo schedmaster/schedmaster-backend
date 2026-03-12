@@ -48,7 +48,9 @@ id_usuario:parseInt(id_usuario)
 })
 
 res.json({
-message:"Archivo subido correctamente"
+message:"Archivo subido y hash generado con éxito",
+filename:file.originalname,
+hash:hash
 })
 
 }catch(error){

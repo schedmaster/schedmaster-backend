@@ -1,7 +1,9 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-/* 1. Crear convocatoria nueva (POST) */
+/* =========================
+   1. Crear convocatoria nueva (POST)
+==========================*/
 exports.crearPeriodo = async (req, res) => {
   try {
     const {
@@ -34,7 +36,9 @@ exports.crearPeriodo = async (req, res) => {
   }
 };
 
-/* 2. Obtener convocatorias con Auto-Cierre (GET) */
+/* =========================
+   2. Obtener convocatorias con Auto-Cierre (GET)
+==========================*/
 exports.obtenerPeriodos = async (req, res) => {
   try {
     const hoy = new Date();
@@ -60,7 +64,9 @@ exports.obtenerPeriodos = async (req, res) => {
   }
 };
 
-/* 3. Actualizar convocatoria existente (PUT) */
+/* =========================
+   3. Actualizar convocatoria existente (PUT)
+==========================*/
 exports.actualizarPeriodo = async (req, res) => {
   try {
     const { id } = req.params; // El ID que viene en la URL
