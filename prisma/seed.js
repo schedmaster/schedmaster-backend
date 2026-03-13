@@ -65,18 +65,31 @@ async function main() {
   })
 
   // 🔹 USUARIO ADMIN
-  await prisma.usuario.create({
-    data: {
-      nombre: 'Admin',
-      apellido_paterno: 'General',
-      apellido_materno: 'Sistema',
-      correo: 'admin@uteq.edu.mx',
-      contrasena: '$2b$10$zeMxbmo87RvxdD1AGEzuGujxu7sQwxq/LxI/mxo8G3aQmzQ..xUrO',
-      cuatrimestre: 1,
-      id_rol: 4
-    }
-  })
+await prisma.usuario.upsert({
+  where: { correo: 'admin@uteq.edu.mx' },
+  update: {},
+  create: {
+    nombre: 'Admin',
+    apellido_paterno: 'General',
+    apellido_materno: 'Sistema',
+    correo: 'admin@uteq.edu.mx',
+    contrasena: '$2b$10$zeMxbmo87RvxdD1AGEzuGujxu7sQwxq/LxI/mxo8G3aQmzQ..xUrO',
+    cuatrimestre: 1,
+    id_rol: 4
+  }
+})
 
+  // 🔹 DIAS DE LA SEMANA
+await prisma.dia.createMany({
+  data: [
+    { nombre: 'Lunes' },
+    { nombre: 'Martes' },
+    { nombre: 'Miércoles' },
+    { nombre: 'Jueves' },
+    { nombre: 'Viernes' }
+  ],
+  skipDuplicates: true
+})
 }
 
 main()

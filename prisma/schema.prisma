@@ -82,6 +82,7 @@ model Periodo {
   horarios      Horario[]
   inscripciones Inscripcion[]
 }
+
 model Horario {
   id_horario       Int      @id @default(autoincrement())
   id_periodo       Int
