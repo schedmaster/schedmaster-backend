@@ -2,6 +2,7 @@ datasource db {
   provider = "mysql"
   url      = env("DATABASE_URL")
 }
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -16,7 +17,7 @@ model Rol {
 }
 
 model Division {
-  id_division     Int       @id @default(autoincrement())
+  id_division     Int    @id @default(autoincrement())
   nombre_division String
   siglas          String
 
@@ -25,20 +26,20 @@ model Division {
 }
 
 model Carrera {
-  id_carrera     Int      @id @default(autoincrement())
+  id_carrera     Int     @id @default(autoincrement())
   nombre_carrera String
   modalidad      String?
   id_division    Int
 
-  division Division @relation(fields: [id_division], references: [id_division])
+  division Division  @relation(fields: [id_division], references: [id_division])
   usuarios Usuario[]
 }
 
 model ListaEspera {
-  id_lista      Int      @id @default(autoincrement())
-  correo        String   @unique
+  id_lista       Int      @id @default(autoincrement())
+  correo         String   @unique
   fecha_registro DateTime @default(now())
-  estado        String   @default("pendiente") // pendiente | notificado
+  estado         String   @default("pendiente") // pendiente | notificado
 }
 
 model Usuario {
@@ -58,24 +59,25 @@ model Usuario {
   carrera  Carrera?  @relation(fields: [id_carrera], references: [id_carrera])
   division Division? @relation(fields: [id_division], references: [id_division])
 
-  periodosEntrenador   Periodo[]       @relation("PeriodoEntrenador")
-  inscripciones        Inscripcion[]   @relation("UsuarioInscripciones")
+  periodosEntrenador     Periodo[]     @relation("PeriodoEntrenador")
+  inscripciones          Inscripcion[] @relation("UsuarioInscripciones")
   inscripcionesAprobadas Inscripcion[] @relation("UsuarioAprobador")
-  asistencias          Asistencia[]    @relation("AsistenciaUsuario")
+  asistencias            Asistencia[]  @relation("AsistenciaUsuario")
   asistenciasRegistradas Asistencia[]  @relation("AsistenciaRegistrador")
 
   asistenciasHistorico AsistenciaHistorico[]
+  propuestas           Propuesta[]
 }
 
 model Periodo {
-  id_periodo                Int      @id @default(autoincrement())
-  nombre_periodo            String
-  fecha_inicio_inscripcion  DateTime
-  fecha_fin_inscripcion     DateTime
-  fecha_inicio_actividades  DateTime
-  fecha_fin_periodo         DateTime
-  estado                    String
-  id_entrenador             Int
+  id_periodo               Int      @id @default(autoincrement())
+  nombre_periodo           String
+  fecha_inicio_inscripcion DateTime
+  fecha_fin_inscripcion    DateTime
+  fecha_inicio_actividades DateTime
+  fecha_fin_periodo        DateTime
+  estado                   String
+  id_entrenador            Int
 
   entrenador Usuario @relation("PeriodoEntrenador", fields: [id_entrenador], references: [id_usuario])
 
@@ -94,18 +96,20 @@ model Horario {
   periodo Periodo @relation(fields: [id_periodo], references: [id_periodo])
 
   // 🔹 relaciones inversas
-  horarioDias HorarioDia[]       // relación con días de la semana
-  inscripciones Inscripcion[]    // relación con inscripciones
-  asistencias   Asistencia[]     // relación con asistencias
+  horarioDias   HorarioDia[] // relación con días de la semana
+  inscripciones Inscripcion[] // relación con inscripciones
+  asistencias   Asistencia[] // relación con asistencias
+  propuestas    Propuesta[]
 }
 
 model Dia {
-  id_dia   Int     @id @default(autoincrement())
-  nombre   String
+  id_dia Int    @id @default(autoincrement())
+  nombre String
 
   // 🔹 relaciones inversas
-  horarioDias       HorarioDia[]       // relación con horarios
-  inscripcionesDias InscripcionDia[]   // relación con días elegidos por usuario
+  horarioDias       HorarioDia[] // relación con horarios
+  inscripcionesDias InscripcionDia[] // relación con días elegidos por usuario
+  propuestasDias    PropuestaDia[]
 }
 
 model HorarioDia {
@@ -120,23 +124,24 @@ model HorarioDia {
 }
 
 model Inscripcion {
-  id_inscripcion     Int @id @default(autoincrement())
-  id_usuario         Int
-  id_horario         Int
-  id_periodo         Int
-  fecha_inscripcion  DateTime @default(now())
-  estado             String
-  prioridad          String
-  id_aprobador       Int?
-  fecha_decision     DateTime?
+  id_inscripcion    Int       @id @default(autoincrement())
+  id_usuario        Int
+  id_horario        Int
+  id_periodo        Int
+  fecha_inscripcion DateTime  @default(now())
+  estado            String
+  prioridad         String
+  id_aprobador      Int?
+  fecha_decision    DateTime?
 
-  usuario   Usuario @relation("UsuarioInscripciones", fields: [id_usuario], references: [id_usuario])
-  horario   Horario @relation(fields: [id_horario], references: [id_horario])
-  periodo   Periodo @relation(fields: [id_periodo], references: [id_periodo])
+  usuario   Usuario  @relation("UsuarioInscripciones", fields: [id_usuario], references: [id_usuario])
+  horario   Horario  @relation(fields: [id_horario], references: [id_horario])
+  periodo   Periodo  @relation(fields: [id_periodo], references: [id_periodo])
   aprobador Usuario? @relation("UsuarioAprobador", fields: [id_aprobador], references: [id_usuario])
 
   asistencias       Asistencia[]
   diasSeleccionados InscripcionDia[]
+  propuestas        Propuesta[]
 }
 
 model InscripcionDia {
@@ -149,28 +154,57 @@ model InscripcionDia {
 }
 
 model Asistencia {
-  id_asistencia      Int @id @default(autoincrement())
-  id_usuario         Int
-  id_inscripcion     Int
-  id_horario         Int
-  fecha              DateTime
-  asistio            Boolean
-  id_registrado_por  Int
+  id_asistencia     Int      @id @default(autoincrement())
+  id_usuario        Int
+  id_inscripcion    Int
+  id_horario        Int
+  fecha             DateTime
+  asistio           Boolean
+  id_registrado_por Int
 
-  usuario        Usuario @relation("AsistenciaUsuario", fields: [id_usuario], references: [id_usuario])
-  registrador    Usuario @relation("AsistenciaRegistrador", fields: [id_registrado_por], references: [id_usuario])
-  inscripcion    Inscripcion @relation(fields: [id_inscripcion], references: [id_inscripcion])
-  horario        Horario     @relation(fields: [id_horario], references: [id_horario])
+  usuario     Usuario     @relation("AsistenciaUsuario", fields: [id_usuario], references: [id_usuario])
+  registrador Usuario     @relation("AsistenciaRegistrador", fields: [id_registrado_por], references: [id_usuario])
+  inscripcion Inscripcion @relation(fields: [id_inscripcion], references: [id_inscripcion])
+  horario     Horario     @relation(fields: [id_horario], references: [id_horario])
 }
 
 model AsistenciaHistorico {
-  id_historico    Int      @id @default(autoincrement())
-  nombre_archivo  String
-  ruta_archivo    String
-  hash_archivo    String   @unique
-  fecha_lista     DateTime
-  fecha_subida    DateTime @default(now())
-  id_usuario      Int
+  id_historico   Int      @id @default(autoincrement())
+  nombre_archivo String
+  ruta_archivo   String
+  hash_archivo   String   @unique
+  fecha_lista    DateTime
+  fecha_subida   DateTime @default(now())
+  id_usuario     Int
 
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+}
+
+model Propuesta {
+  id_propuesta Int @id @default(autoincrement())
+
+  id_inscripcion Int
+  id_horario     Int
+  id_usuario     Int
+
+  estado          String    @default("pendiente") // pendiente | aceptada | rechazada
+  fecha_envio     DateTime  @default(now())
+  fecha_respuesta DateTime?
+
+  // relaciones
+  inscripcion Inscripcion @relation(fields: [id_inscripcion], references: [id_inscripcion])
+  horario     Horario     @relation(fields: [id_horario], references: [id_horario])
+  usuario     Usuario     @relation(fields: [id_usuario], references: [id_usuario])
+
+  dias PropuestaDia[]
+}
+
+model PropuestaDia {
+  id_propuesta_dia Int @id @default(autoincrement())
+
+  id_propuesta Int
+  id_dia       Int
+
+  propuesta Propuesta @relation(fields: [id_propuesta], references: [id_propuesta])
+  dia       Dia       @relation(fields: [id_dia], references: [id_dia])
 }

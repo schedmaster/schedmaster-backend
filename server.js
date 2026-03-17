@@ -11,7 +11,7 @@ const listaEsperaRoutes = require('./src/routes/listaEspera.routes');
 const inscripcionRoutes = require('./src/routes/inscripcion.routes');
 const adminAsistenciaRoutes = require("./src/routes/adminAsistencia.routes");
 const periodoRoutes = require('./src/routes/adminConvocatoria.routes');
-// const propuestaRoutes = require('./src/routes/propuesta.routes'); // 👈 Próximamente
+const propuestaRoutes = require('./src/routes/propuestaInscripcion.routes'); 
 
 const app = express();
 const prisma = new PrismaClient();
@@ -45,7 +45,7 @@ app.use('/api/lista-espera', listaEsperaRoutes);
 app.use('/api/inscripciones', inscripcionRoutes);
 app.use("/api/admin-asistencia", adminAsistenciaRoutes);
 app.use('/api/admin-convocatoria', periodoRoutes);
-// app.use('/api/propuestas', propuestaRoutes); // 👈 Próximamente
+app.use('/api/propuestas', propuestaRoutes); 
 
 app.use('/uploads', express.static('uploads'));
 
