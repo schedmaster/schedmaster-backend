@@ -1,26 +1,25 @@
 const express = require('express');
 const router = express.Router();
-
 const horarioController = require('../controllers/horario.controller'); 
 
 // ==========================================
-// Rutas que ya tenías (GET)
+// RUTAS PARA LEER DATOS (GET)
 // ==========================================
+// Trae todos los horarios para llenar la tabla
 router.get('/', horarioController.getHorarios);
-router.get('/:id/dias', horarioController.getDiasPorHorario);
 
 // ==========================================
-// 👇 NUEVAS RUTAS PARA EL CRUD DE HORARIOS 👇
+// RUTAS PARA MODIFICAR DATOS (POST, PUT, DELETE)
 // ==========================================
 
-// Crear un nuevo horario (POST porque enviamos datos nuevos)
+// Crear un nuevo horario (POST)
 router.post('/crear', horarioController.createHorario);
 
-// Editar un horario existente (PUT porque actualizamos datos)
-// El ':id' indica que le pasaremos el número del horario por la URL
+// Editar un horario existente (PUT)
 router.put('/editar/:id', horarioController.updateHorario);
 
-// Desactivar un horario (PUT para cambiar su estado a 0)
-router.put('/desactivar/:id', horarioController.deactivateHorario);
+// Eliminar un horario de la base de datos (DELETE)
+// Nota: Cambié esto para que coincida con tu controlador que usa deleteHorario
+router.delete('/eliminar/:id', horarioController.deleteHorario);
 
 module.exports = router;

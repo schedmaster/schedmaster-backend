@@ -88,8 +88,9 @@ model Periodo {
 model Horario {
   id_horario       Int      @id @default(autoincrement())
   id_periodo       Int
-  hora_inicio      DateTime
-  hora_fin         DateTime
+  // 🔹 AQUI ESTÁ EL CAMBIO PRINCIPAL:
+  hora_inicio      String   
+  hora_fin         String   
   tipo_actividad   String?
   capacidad_maxima Int
 
