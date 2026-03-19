@@ -1,10 +1,11 @@
 const prisma = require('../../prisma/client')
 
-// obtener todas las inscripciones pendientes para que el admin pueda aprobar o rechazar
+// ==========================================
+// 1. OBTENER TODAS LAS INSCRIPCIONES PENDIENTES
+// ==========================================
 exports.obtenerPendientes = async (req, res) => {
   try {
-
-    // buscar inscripciones con estado pendiente
+    // Buscar inscripciones con estado pendiente
     const inscripcionesPendientes = await prisma.inscripcion.findMany({
       where: {
         estado: 'pendiente'
@@ -24,15 +25,12 @@ exports.obtenerPendientes = async (req, res) => {
       }
     })
 
-    // formatear datos para el frontend
+    // Formatear datos para el frontend
     const datosFormateados = inscripcionesPendientes.map(insc => {
+      // Calcular número de asistencias del usuario
+      const totalAsistencias = insc.usuario.asistencias ? insc.usuario.asistencias.length : 0
 
-      // calcular número de asistencias del usuario
-      const totalAsistencias = insc.usuario.asistencias
-        ? insc.usuario.asistencias.length
-        : 0
-
-      // determinar prioridad automáticamente
+      // Determinar prioridad automáticamente
       const prioridadCalculada = totalAsistencias > 3 ? 'alta' : 'baja'
 
       return {
@@ -50,17 +48,13 @@ exports.obtenerPendientes = async (req, res) => {
         prioridad: prioridadCalculada,
         estado: insc.estado,
 
-        // formatear horario para el frontend
+        // 🟢 Corrección: Enviamos la hora directa como texto (String)
         horario: {
-          hora_inicio: insc.horario.hora_inicio
-            ? insc.horario.hora_inicio.toTimeString().slice(0, 5)
-            : null,
-          hora_fin: insc.horario.hora_fin
-            ? insc.horario.hora_fin.toTimeString().slice(0, 5)
-            : null
+          hora_inicio: insc.horario ? insc.horario.hora_inicio : null,
+          hora_fin: insc.horario ? insc.horario.hora_fin : null
         },
 
-        // enviar días exactamente como el frontend los espera
+        // Enviar días exactamente como el frontend los espera
         diasSeleccionados: insc.diasSeleccionados
       }
     })
@@ -68,18 +62,18 @@ exports.obtenerPendientes = async (req, res) => {
     res.status(200).json(datosFormateados)
 
   } catch (error) {
-    console.error('error al obtener inscripciones:', error)
+    console.error('Error al obtener inscripciones:', error)
     res.status(500).json({
-      message: 'error interno del servidor'
+      message: 'Error interno del servidor'
     })
   }
 }
 
-
-// aprobar una inscripción pendiente
+// ==========================================
+// 2. APROBAR UNA INSCRIPCIÓN PENDIENTE
+// ==========================================
 exports.aceptarInscripcion = async (req, res) => {
   try {
-
     const { id_inscripcion } = req.body
 
     if (!id_inscripcion) {
@@ -88,7 +82,7 @@ exports.aceptarInscripcion = async (req, res) => {
       })
     }
 
-    // actualizar estado de inscripción
+    // Actualizar estado de inscripción
     const inscripcionActualizada = await prisma.inscripcion.update({
       where: {
         id_inscripcion: parseInt(id_inscripcion)
@@ -102,7 +96,7 @@ exports.aceptarInscripcion = async (req, res) => {
       }
     })
 
-    // activar usuario en el sistema
+    // Activar usuario en el sistema
     await prisma.usuario.update({
       where: {
         id_usuario: inscripcionActualizada.usuario.id_usuario
@@ -113,22 +107,22 @@ exports.aceptarInscripcion = async (req, res) => {
     })
 
     res.status(200).json({
-      message: 'inscripción aprobada correctamente'
+      message: 'Inscripción aprobada correctamente'
     })
 
   } catch (error) {
-    console.error('error al aprobar inscripción:', error)
+    console.error('Error al aprobar inscripción:', error)
     res.status(500).json({
-      message: 'error al aprobar la inscripción'
+      message: 'Error al aprobar la inscripción'
     })
   }
 }
 
-
-// rechazar una inscripción pendiente
+// ==========================================
+// 3. RECHAZAR UNA INSCRIPCIÓN PENDIENTE
+// ==========================================
 exports.rechazarInscripcion = async (req, res) => {
   try {
-
     const { id_inscripcion } = req.body
 
     if (!id_inscripcion) {
@@ -137,7 +131,7 @@ exports.rechazarInscripcion = async (req, res) => {
       })
     }
 
-    // actualizar estado de inscripción
+    // Actualizar estado de inscripción
     await prisma.inscripcion.update({
       where: {
         id_inscripcion: parseInt(id_inscripcion)
@@ -149,13 +143,13 @@ exports.rechazarInscripcion = async (req, res) => {
     })
 
     res.status(200).json({
-      message: 'inscripción rechazada correctamente'
+      message: 'Inscripción rechazada correctamente'
     })
 
   } catch (error) {
-    console.error('error al rechazar inscripción:', error)
+    console.error('Error al rechazar inscripción:', error)
     res.status(500).json({
-      message: 'error al rechazar la inscripción'
+      message: 'Error al rechazar la inscripción'
     })
   }
 }
