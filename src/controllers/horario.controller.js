@@ -26,13 +26,12 @@ exports.getHorarios = async (req, res) => {
         horarioDias: { include: { dia: true } },
         periodo: true,
       },
-      orderBy: { hora_inicio: 'asc' }, // Como es texto ("16:00", "17:00"), se ordenará alfabéticamente sin problemas
+      orderBy: { hora_inicio: 'asc' }, 
     });
 
     const mapped = horarios.map(h => {
       return {
         id_horario: h.id_horario,
-        // ¡Magia! Ya no hay que recortar ningún 1970. Pasamos la hora limpia directo de la BD
         hora_inicio: h.hora_inicio, 
         hora_fin: h.hora_fin,
         tipo_actividad: h.tipo_actividad || 'Gimnasio', 
@@ -66,7 +65,6 @@ exports.createHorario = async (req, res) => {
     const nuevoHorario = await prisma.horario.create({
       data: {
         id_periodo: Number(id_periodo),
-        // Guardamos solo los primeros 5 caracteres por si el frontend manda "16:42:00" -> queda "16:42"
         hora_inicio: hora_inicio.substring(0, 5), 
         hora_fin: hora_fin.substring(0, 5),
         tipo_actividad: tipo_actividad || 'Gimnasio',
@@ -101,7 +99,6 @@ exports.updateHorario = async (req, res) => {
         hora_fin: hora_fin ? hora_fin.substring(0, 5) : undefined,
         tipo_actividad: tipo_actividad || 'Gimnasio',
         capacidad_maxima: capacidad_maxima ? Number(capacidad_maxima) : undefined,
-        // Si mandan días nuevos, borramos los viejos y creamos los nuevos
         ...(dias && dias.length > 0 && {
           horarioDias: {
             deleteMany: {}, 
@@ -120,13 +117,12 @@ exports.updateHorario = async (req, res) => {
 };
 
 // ==========================================
-// 4. ELIMINAR HORARIO (AHORA CON PROTECCIÓN)
+// 4. ELIMINAR HORARIO 
 // ==========================================
 exports.deleteHorario = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // 1. ESCUDO PROTECTOR: Revisamos si hay alumnos inscritos en este horario
     const inscripcionesActivas = await prisma.inscripcion.count({
       where: { id_horario: Number(id) }
     });
@@ -137,12 +133,10 @@ exports.deleteHorario = async (req, res) => {
       });
     }
 
-    // 2. Si llegamos aquí, está limpio. Borramos primero los días (tabla intermedia)
     await prisma.horarioDia.deleteMany({
       where: { id_horario: Number(id) }
     });
 
-    // 3. Finalmente, borramos el horario
     const horarioBorrado = await prisma.horario.delete({
       where: { id_horario: Number(id) }
     });
@@ -150,7 +144,29 @@ exports.deleteHorario = async (req, res) => {
     res.json({ message: 'Horario eliminado correctamente', horario: horarioBorrado });
   } catch (error) {
     console.error('❌ ERROR ELIMINANDO HORARIO:', error);
-    // Cambiamos esto para que siempre devuelva un texto que React pueda leer
     res.status(500).json({ message: 'Error interno al intentar eliminar el horario', detalles: error.message });
+  }
+};
+
+// ==========================================
+// 5. OBTENER LOS DÍAS DE UN HORARIO (¡LA NUEVA FUNCIÓN!)
+// ==========================================
+exports.getDiasPorHorario = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Buscamos en la tabla intermedia los días que le pertenecen a este horario
+    const horarioDias = await prisma.horarioDia.findMany({
+      where: { id_horario: Number(id) },
+      include: { dia: true } // Incluimos la información completa del día (nombre, etc)
+    });
+
+    // Extraemos solo el objeto "dia" para que el frontend lo procese fácilmente
+    const dias = horarioDias.map(hd => hd.dia);
+
+    res.json(dias);
+  } catch (error) {
+    console.error('❌ ERROR OBTENIENDO DÍAS DEL HORARIO:', error);
+    res.status(500).json({ message: 'Error interno al obtener los días del horario', detalles: error.message });
   }
 };

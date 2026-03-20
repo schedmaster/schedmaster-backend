@@ -9,12 +9,9 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-transporter.verify(function(error, success) {
-  if (error) {
-    console.log("Error con el servidor de correo:", error);
-  } else {
-    console.log(" Servidor de correo listo");
-  }
+transporter.verify((error) => {
+  if (error) console.log("❌ Error Mailer:", error);
+  else console.log("✅ Servidor de correo oficial listo");
 });
 
 module.exports = transporter;
