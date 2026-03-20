@@ -48,13 +48,13 @@ exports.obtenerPendientes = async (req, res) => {
         prioridad: prioridadCalculada,
         estado: insc.estado,
 
-        // 🟢 Corrección: Enviamos la hora directa como texto (String)
+        // Mantenemos la corrección de las horas para evitar el error de toTimeString()
         horario: {
           hora_inicio: insc.horario ? insc.horario.hora_inicio : null,
           hora_fin: insc.horario ? insc.horario.hora_fin : null
         },
 
-        // Enviar días exactamente como el frontend los espera
+        // 🟢 Reversión: Enviamos el arreglo crudo porque el nuevo frontend ya hace el .map()
         diasSeleccionados: insc.diasSeleccionados
       }
     })

@@ -7,8 +7,6 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// tus modelos aquí...
-
 model Rol {
   id_rol      Int       @id @default(autoincrement())
   nombre_rol  String
@@ -26,10 +24,10 @@ model Division {
 }
 
 model Carrera {
-  id_carrera     Int     @id @default(autoincrement())
-  nombre_carrera String
-  modalidad      String?
-  id_division    Int
+  id_carrera      Int     @id @default(autoincrement())
+  nombre_carrera  String
+  modalidad       String?
+  id_division     Int
 
   division Division  @relation(fields: [id_division], references: [id_division])
   usuarios Usuario[]
@@ -39,7 +37,7 @@ model ListaEspera {
   id_lista       Int      @id @default(autoincrement())
   correo         String   @unique
   fecha_registro DateTime @default(now())
-  estado         String   @default("pendiente") // pendiente | notificado
+  estado         String   @default("pendiente")
 }
 
 model Usuario {
@@ -55,7 +53,7 @@ model Usuario {
   id_rol           Int
   activo           Boolean @default(true)
 
-  rol      Rol       @relation(fields: [id_rol], references: [id_rol])
+  rol      Rol      @relation(fields: [id_rol], references: [id_rol])
   carrera  Carrera?  @relation(fields: [id_carrera], references: [id_carrera])
   division Division? @relation(fields: [id_division], references: [id_division])
 
@@ -70,14 +68,14 @@ model Usuario {
 }
 
 model Periodo {
-  id_periodo               Int      @id @default(autoincrement())
-  nombre_periodo           String
+  id_periodo                Int      @id @default(autoincrement())
+  nombre_periodo            String
   fecha_inicio_inscripcion DateTime
-  fecha_fin_inscripcion    DateTime
+  fecha_fin_inscripcion     DateTime
   fecha_inicio_actividades DateTime
-  fecha_fin_periodo        DateTime
-  estado                   String
-  id_entrenador            Int
+  fecha_fin_periodo         DateTime
+  estado                    String
+  id_entrenador             Int
 
   entrenador Usuario @relation("PeriodoEntrenador", fields: [id_entrenador], references: [id_usuario])
 
@@ -88,7 +86,6 @@ model Periodo {
 model Horario {
   id_horario       Int      @id @default(autoincrement())
   id_periodo       Int
-  // 🔹 AQUI ESTÁ EL CAMBIO PRINCIPAL:
   hora_inicio      String   
   hora_fin         String   
   tipo_actividad   String?
@@ -96,10 +93,9 @@ model Horario {
 
   periodo Periodo @relation(fields: [id_periodo], references: [id_periodo])
 
-  // 🔹 relaciones inversas
-  horarioDias   HorarioDia[] // relación con días de la semana
-  inscripciones Inscripcion[] // relación con inscripciones
-  asistencias   Asistencia[] // relación con asistencias
+  horarioDias   HorarioDia[]
+  inscripciones Inscripcion[]
+  asistencias   Asistencia[]
   propuestas    Propuesta[]
 }
 
@@ -107,9 +103,8 @@ model Dia {
   id_dia Int    @id @default(autoincrement())
   nombre String
 
-  // 🔹 relaciones inversas
-  horarioDias       HorarioDia[] // relación con horarios
-  inscripcionesDias InscripcionDia[] // relación con días elegidos por usuario
+  horarioDias       HorarioDia[]
+  inscripcionesDias InscripcionDia[]
   propuestasDias    PropuestaDia[]
 }
 
@@ -156,11 +151,11 @@ model InscripcionDia {
 
 model Asistencia {
   id_asistencia     Int      @id @default(autoincrement())
-  id_usuario        Int
-  id_inscripcion    Int
-  id_horario        Int
-  fecha             DateTime
-  asistio           Boolean
+  id_usuario         Int
+  id_inscripcion     Int
+  id_horario         Int
+  fecha              DateTime
+  asistio            Boolean
   id_registrado_por Int
 
   usuario     Usuario     @relation("AsistenciaUsuario", fields: [id_usuario], references: [id_usuario])
@@ -188,16 +183,16 @@ model Propuesta {
   id_horario     Int
   id_usuario     Int
 
-  estado          String    @default("pendiente") // pendiente | aceptada | rechazada
+  estado          String    @default("pendiente") 
   fecha_envio     DateTime  @default(now())
   fecha_respuesta DateTime?
 
-  // relaciones
   inscripcion Inscripcion @relation(fields: [id_inscripcion], references: [id_inscripcion])
   horario     Horario     @relation(fields: [id_horario], references: [id_horario])
   usuario     Usuario     @relation(fields: [id_usuario], references: [id_usuario])
 
   dias PropuestaDia[]
+  @@map("propuesta")
 }
 
 model PropuestaDia {
@@ -208,4 +203,5 @@ model PropuestaDia {
 
   propuesta Propuesta @relation(fields: [id_propuesta], references: [id_propuesta])
   dia       Dia       @relation(fields: [id_dia], references: [id_dia])
+  @@map("propuesta_dia")
 }

@@ -1,24 +1,18 @@
 const express = require('express');
 const router = express.Router();
-
 const propuestaController = require('../controllers/propuestaInscripcion.controller');
 
-// Enviar propuesta
-router.post(
-  '/propuesta-inscripcion',
-  propuestaController.enviarPropuesta
-);
+// ==========================================
+// RUTAS DE PROPUESTAS DE INSCRIPCIÓN
+// ==========================================
 
-// Obtener propuesta del usuario
-router.get(
-  '/usuario/:id_usuario',
-  propuestaController.obtenerPropuestaUsuario
-);
+// 1. Enviar propuesta (Admin -> Alumno)
+router.post('/propuesta-inscripcion', propuestaController.enviarPropuesta);
 
-// Aceptar propuesta (ESTA ES LA QUE TE FALTABA)
-router.post(
-  '/aceptar',
-  propuestaController.aceptarPropuesta
-);
+// 2. Obtener propuesta pendiente del alumno
+router.get('/usuario/:id_usuario', propuestaController.obtenerPropuestaUsuario);
+
+// 3. Aceptar propuesta (Alumno -> Sistema)
+router.post('/aceptar', propuestaController.aceptarPropuesta);
 
 module.exports = router;
