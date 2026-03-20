@@ -111,44 +111,79 @@ exports.getPublicKey = (req, res) => {
 };
 
 
-/**
- * LOGIN
- */
 exports.login = async (req, res) => {
   try {
     const { keyId, encryptedKey, iv, encryptedData } = req.body;
+
     if (!keyId || !encryptedKey || !iv || !encryptedData) {
       return res.status(400).json({ message: 'Payload de login incompleto o sin cifrar' });
     }
 
     const privateKey = consumeKey(keyId);
-    if (!privateKey) return res.status(401).json({ message: 'Clave de sesión inválida o expirada' });
+    if (!privateKey) {
+      return res.status(401).json({ message: 'Clave de sesión inválida o expirada' });
+    }
 
     let aesKey;
-    try { aesKey = decryptAESKeyWithRSA(privateKey, encryptedKey); }
-    catch { return res.status(400).json({ message: 'No se pudo descifrar la clave de sesión' }); }
+    try {
+      aesKey = decryptAESKeyWithRSA(privateKey, encryptedKey);
+    } catch {
+      return res.status(400).json({ message: 'No se pudo descifrar la clave de sesión' });
+    }
 
     let credenciales;
-    try { credenciales = decryptWithAES(aesKey, iv, encryptedData); }
-    catch { return res.status(400).json({ message: 'No se pudieron descifrar las credenciales' }); }
+    try {
+      credenciales = decryptWithAES(aesKey, iv, encryptedData);
+    } catch {
+      return res.status(400).json({ message: 'No se pudieron descifrar las credenciales' });
+    }
 
     const { correo, password } = credenciales;
-    if (!correo || !password) return res.status(400).json({ message: 'Correo y contraseña son requeridos' });
+
+    if (!correo || !password) {
+      return res.status(400).json({ message: 'Correo y contraseña son requeridos' });
+    }
 
     const normalizedEmail = correo.toLowerCase().trim();
 
     const user = await prisma.usuario.findUnique({
       where: { correo: normalizedEmail },
-      include: { inscripciones: true }
+      include: {
+        carrera: true,
+        division: true,
+        inscripciones: {
+          include: {
+            horario: {
+              include: {
+                periodo: true
+              }
+            },
+            propuestas: {
+              include: {
+                dias: {
+                  include: {
+                    dia: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     });
-    if (!user) return res.status(404).json({ message: 'Usuario no encontrado' });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
 
     const match = await bcrypt.compare(password, user.contrasena);
-    if (!match) return res.status(401).json({ message: 'Contraseña incorrecta' });
+    if (!match) {
+      return res.status(401).json({ message: 'Contraseña incorrecta' });
+    }
 
     const { contrasena: _, ...usuarioSeguro } = user;
 
-    // 🔹 Entrenador o administrador → acceso directo
+   
     if (user.id_rol === 3 || user.id_rol === 4) {
       return res.json({
         status: user.activo ? 'approved' : 'pending',
@@ -156,15 +191,27 @@ exports.login = async (req, res) => {
       });
     }
 
-    // 🔹 Estudiante o docente → validar última inscripción
-    const ultimaInscripcion = user.inscripciones
-      .sort((a, b) => new Date(b.fecha_inscripcion) - new Date(a.fecha_inscripcion))[0];
 
-    let estadoInscripcion = ultimaInscripcion ? ultimaInscripcion.estado : 'pendiente';
+
+    const ultimaInscripcion = user.inscripciones
+      ?.sort((a, b) => new Date(b.fecha_inscripcion) - new Date(a.fecha_inscripcion))[0];
+
+    let estadoInscripcion = ultimaInscripcion
+      ? ultimaInscripcion.estado
+      : 'pendiente';
+
+
+    const propuestaAprobada = ultimaInscripcion?.propuestas
+      ?.find(p => p.estado === 'aprobado');
 
     return res.json({
       status: estadoInscripcion === 'aprobado' ? 'approved' : 'pending',
-      usuario: { ...usuarioSeguro, estadoInscripcion }
+      usuario: {
+        ...usuarioSeguro,
+        estadoInscripcion,
+        ultimaInscripcion,
+        propuestaAprobada
+      }
     });
 
   } catch (error) {
