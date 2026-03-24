@@ -43,7 +43,10 @@ app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/horarios', horarioRoutes);
 app.use('/api/lista-espera', listaEsperaRoutes);
 app.use('/api/inscripciones', inscripcionRoutes);
-app.use("/api/admin-asistencia", adminAsistenciaRoutes);
+
+// 🔹 AQUÍ ESTABA EL DETALLE: Cambiamos el nombre para que coincida con el frontend
+app.use('/api/asistencias', adminAsistenciaRoutes);
+
 app.use('/api/admin-convocatoria', periodoRoutes);
 app.use('/api/propuestas', propuestaRoutes); 
 
