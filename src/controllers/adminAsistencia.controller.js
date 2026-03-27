@@ -6,9 +6,22 @@ const prisma = require("../../prisma/client");
 exports.getAsistenciasAdmin = async (req, res) => {
   try {
     const { fecha, id_horario, estado, id_carrera } = req.query;
-    const fechaFiltro = fecha ? new Date(fecha) : new Date();
-    const inicioDia = new Date(fechaFiltro.setHours(0, 0, 0, 0));
-    const finDia = new Date(fechaFiltro.setHours(23, 59, 59, 999));
+    
+    // 👈 CORRECCIÓN ZONA HORARIA: Manejo explícito de la fecha para evitar desfases
+    let fechaFiltro = new Date(); // Si no hay fecha, usa HOY con la hora local actual
+    
+    if (fecha) {
+      // Si mandan '2026-03-24', lo partimos para crear una fecha local exacta sin UTC shift
+      const partes = fecha.split('-'); 
+      fechaFiltro = new Date(partes[0], partes[1] - 1, partes[2]); 
+    }
+
+    // Creamos los límites de ESE día específico (desde las 00:00:00 hasta las 23:59:59)
+    const inicioDia = new Date(fechaFiltro);
+    inicioDia.setHours(0, 0, 0, 0);
+    
+    const finDia = new Date(fechaFiltro);
+    finDia.setHours(23, 59, 59, 999);
 
     const inscripciones = await prisma.inscripcion.findMany({
       where: {
@@ -60,13 +73,22 @@ exports.getAsistenciasAdmin = async (req, res) => {
 // 2. REGISTRAR ASISTENCIA (EL BOTÓN DE LA TABLA)
 exports.registrarAsistencia = async (req, res) => {
   try {
-    const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por } = req.body;
+    const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por, fecha_registro } = req.body;
 
-    const hoy = new Date();
-    const inicioDia = new Date(hoy.setHours(0, 0, 0, 0));
-    const finDia = new Date(hoy.setHours(23, 59, 59, 999));
+    // Usamos la fecha que mande el frontend (si está viendo un día pasado), o usamos HOY
+    let fechaAfectar = new Date();
+    if (fecha_registro) {
+      const partes = fecha_registro.split('-');
+      fechaAfectar = new Date(partes[0], partes[1] - 1, partes[2]);
+    }
 
-    // Verificamos si ya existe una asistencia hoy para este usuario
+    const inicioDia = new Date(fechaAfectar);
+    inicioDia.setHours(0, 0, 0, 0);
+    
+    const finDia = new Date(fechaAfectar);
+    finDia.setHours(23, 59, 59, 999);
+
+    // Verificamos si ya existe una asistencia para ESE DÍA ESPECÍFICO
     const asistenciaExistente = await prisma.asistencia.findFirst({
       where: {
         id_usuario: Number(id_usuario),
@@ -75,18 +97,22 @@ exports.registrarAsistencia = async (req, res) => {
     });
 
     let resultado;
+    
+    // Si estamos modificando una asistencia que ya se tomó hoy (o el día seleccionado)
     if (asistenciaExistente) {
       resultado = await prisma.asistencia.update({
         where: { id_asistencia: asistenciaExistente.id_asistencia },
-        data: { asistio: Boolean(asistio), fecha: new Date() }
+        // Actualizamos el estado, pero usamos la hora local exacta para que no se desfase
+        data: { asistio: Boolean(asistio), fecha: new Date() } 
       });
     } else {
+      // Es un registro nuevo para ese día
       resultado = await prisma.asistencia.create({
         data: {
           id_usuario: Number(id_usuario),
           id_inscripcion: Number(id_inscripcion),
           id_horario: Number(id_horario),
-          fecha: new Date(),
+          fecha: new Date(), // Guardamos el timestamp exacto del momento del clic
           asistio: Boolean(asistio),
           id_registrado_por: Number(id_registrado_por || 1)
         }
