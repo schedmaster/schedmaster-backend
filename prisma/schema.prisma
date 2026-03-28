@@ -65,6 +65,26 @@ model Usuario {
 
   asistenciasHistorico AsistenciaHistorico[]
   propuestas           Propuesta[]
+  loginChallenges2FA   LoginChallenge2FA[]
+}
+
+model LoginChallenge2FA {
+  id            String    @id @default(uuid())
+  id_usuario    Int
+  code_hash     String
+  expires_at    DateTime
+  intent        String    @default("login")
+  attempts      Int       @default(0)
+  max_attempts  Int       @default(5)
+  consumed_at   DateTime?
+  created_at    DateTime  @default(now())
+  last_sent_at  DateTime  @default(now())
+  send_count    Int       @default(1)
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+
+  @@index([id_usuario, intent, consumed_at, expires_at])
+  @@map("login_challenge_2fa")
 }
 
 model Periodo {

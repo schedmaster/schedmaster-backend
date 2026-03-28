@@ -2,6 +2,11 @@ const prisma = require('../../prisma/client');
 const bcrypt = require('bcrypt');
 const { generateRSAKeyPair, decryptAESKeyWithRSA, decryptWithAES } = require('../lib/cryptoHelper');
 const { saveKey, consumeKey } = require('../lib/keyStore');
+const {
+  createLogin2FAChallenge,
+  verifyLogin2FAChallenge,
+  resendLogin2FACode
+} = require('../services/twoFactorAuth.service');
 
 function esContrasenaValida(password) {
   if (typeof password !== 'string') return false;
@@ -164,27 +169,11 @@ exports.login = async (req, res) => {
 
     const user = await prisma.usuario.findUnique({
       where: { correo: normalizedEmail },
-      include: {
-        carrera: true,
-        division: true,
-        inscripciones: {
-          include: {
-            horario: {
-              include: {
-                periodo: true
-              }
-            },
-            propuestas: {
-              include: {
-                dias: {
-                  include: {
-                    dia: true
-                  }
-                }
-              }
-            }
-          }
-        }
+      select: {
+        id_usuario: true,
+        nombre: true,
+        correo: true,
+        contrasena: true
       }
     });
 
@@ -197,41 +186,104 @@ exports.login = async (req, res) => {
       return res.status(401).json({ message: 'Contraseña incorrecta' });
     }
 
-    const { contrasena: _, ...usuarioSeguro } = user;
-
-   
-    if (user.id_rol === 3 || user.id_rol === 4) {
-      return res.json({
-        status: user.activo ? 'approved' : 'pending',
-        usuario: usuarioSeguro
-      });
-    }
-
-
-
-    const ultimaInscripcion = user.inscripciones
-      ?.sort((a, b) => new Date(b.fecha_inscripcion) - new Date(a.fecha_inscripcion))[0];
-
-    let estadoInscripcion = ultimaInscripcion
-      ? ultimaInscripcion.estado
-      : 'pendiente';
-
-
-    const propuestaAprobada = ultimaInscripcion?.propuestas
-      ?.find(p => p.estado === 'aprobado');
+    const challenge = await createLogin2FAChallenge(user);
 
     return res.json({
-      status: estadoInscripcion === 'aprobado' ? 'approved' : 'pending',
-      usuario: {
-        ...usuarioSeguro,
-        estadoInscripcion,
-        ultimaInscripcion,
-        propuestaAprobada
-      }
+      requiresTwoFactor: true,
+      message: 'Se envio un codigo de verificacion a tu correo.',
+      twoFactorToken: challenge.challengeId,
+      expiresInSeconds: challenge.expiresInSeconds
     });
 
   } catch (error) {
     console.error('Error en login:', error);
     res.status(500).json({ message: 'Error interno del servidor' });
+  }
+};
+
+exports.verify2FA = async (req, res) => {
+  try {
+    const { twoFactorToken, code } = req.body;
+
+    if (!twoFactorToken || !code) {
+      return res.status(400).json({ message: 'twoFactorToken y code son requeridos' });
+    }
+
+    const result = await verifyLogin2FAChallenge(twoFactorToken, code);
+
+    if (result.status === 'verified') {
+      return res.json(result.authResponse);
+    }
+
+    if (result.status === 'invalid_code') {
+      return res.status(401).json({
+        message: 'Codigo de verificacion incorrecto',
+        remainingAttempts: result.remainingAttempts
+      });
+    }
+
+    if (result.status === 'attempts_exceeded') {
+      return res.status(429).json({ message: 'Numero maximo de intentos excedido' });
+    }
+
+    if (result.status === 'expired') {
+      return res.status(410).json({ message: 'El codigo de verificacion expiro' });
+    }
+
+    if (result.status === 'consumed') {
+      return res.status(409).json({ message: 'El codigo ya fue utilizado' });
+    }
+
+    if (result.status === 'user_not_found') {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    return res.status(400).json({ message: 'Reto 2FA invalido' });
+  } catch (error) {
+    console.error('Error verificando 2FA:', error);
+    return res.status(500).json({ message: 'Error interno del servidor' });
+  }
+};
+
+exports.resend2FA = async (req, res) => {
+  try {
+    const { twoFactorToken } = req.body;
+
+    if (!twoFactorToken) {
+      return res.status(400).json({ message: 'twoFactorToken es requerido' });
+    }
+
+    const result = await resendLogin2FACode(twoFactorToken);
+
+    if (result.status === 'resent') {
+      return res.json({
+        message: 'Codigo reenviado al correo registrado',
+        expiresInSeconds: result.expiresInSeconds
+      });
+    }
+
+    if (result.status === 'cooldown') {
+      return res.status(429).json({
+        message: 'Espera antes de volver a solicitar un codigo',
+        retryAfterSeconds: result.retryAfterSeconds
+      });
+    }
+
+    if (result.status === 'max_sends_reached') {
+      return res.status(429).json({ message: 'Numero maximo de reenvios alcanzado' });
+    }
+
+    if (result.status === 'expired') {
+      return res.status(410).json({ message: 'El codigo de verificacion expiro' });
+    }
+
+    if (result.status === 'consumed') {
+      return res.status(409).json({ message: 'El codigo ya fue utilizado' });
+    }
+
+    return res.status(400).json({ message: 'Reto 2FA invalido' });
+  } catch (error) {
+    console.error('Error reenviando 2FA:', error);
+    return res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
