@@ -16,4 +16,6 @@ router.put('/eliminar', eliminarUsuario);
 // PUT editar
 router.put('/editar', editarUsuario);
 
+router.put('/', editarUsuario);
+
 module.exports = router;

@@ -104,3 +104,36 @@ exports.editarUsuario = async (req, res) => {
     res.status(500).json({ message: 'Error al editar usuario' });
   }
 };
+
+exports.crearUsuario = async (req, res) => {
+  try {
+    const {
+      nombre,
+      apellido_paterno,
+      apellido_materno,
+      correo,
+      id_rol
+    } = req.body;
+
+    // ⚠️ contraseña temporal (puedes mejorar luego)
+    const contrasena = "123456";
+
+    const nuevo = await prisma.usuario.create({
+      data: {
+        nombre,
+        apellido_paterno,
+        apellido_materno,
+        correo,
+        contrasena,
+        id_rol: parseInt(id_rol),
+        activo: true
+      }
+    });
+
+    res.json(nuevo);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error al crear usuario' });
+  }
+};
