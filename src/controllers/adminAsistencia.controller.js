@@ -54,7 +54,25 @@ exports.uploadAndHash = async (req,res)=>{
 ========================== */
 exports.obtenerHistorico = async (req,res)=>{
   try{
+    const { q } = req.query;
+
+    const where = {};
+
+    if (q && String(q).trim() !== '') {
+      const textoBusqueda = String(q).trim();
+      const posibleId = parseInt(textoBusqueda, 10);
+
+      where.OR = [
+        { nombre_archivo: { contains: textoBusqueda } }
+      ];
+
+      if (!Number.isNaN(posibleId)) {
+        where.OR.push({ id_historico: posibleId });
+      }
+    }
+
     const historico = await prisma.asistenciaHistorico.findMany({
+      where,
       orderBy:{ fecha_lista:"desc" }
     });
 
@@ -77,7 +95,7 @@ exports.obtenerAsistencias = async (req, res) => {
       include: {
         usuario: true,
         horario: true,
-        asistencias: true // 👈 IMPORTANTE
+        asistencias: true
       }
     });
 
@@ -99,7 +117,7 @@ exports.obtenerAsistencias = async (req, res) => {
         tipoEntrenamiento: a.horario.tipo_actividad || "General",
         carrera: a.usuario.id_carrera || "N/A",
         matricula: a.usuario.id_usuario,
-        estado // 🔥 dinámico
+        estado
       };
 
     });
@@ -120,7 +138,7 @@ exports.marcarAsistencia = async (req, res) => {
   try {
     const { id_inscripcion, asistio } = req.body;
 
-    // 🔥 traer inscripción real
+    //Traer inscripción real
     const inscripcion = await prisma.inscripcion.findUnique({
       where: { id_inscripcion: parseInt(id_inscripcion) }
     });
@@ -129,7 +147,7 @@ exports.marcarAsistencia = async (req, res) => {
       return res.status(404).json({ message: "Inscripción no encontrada" });
     }
 
-    // 🔥 evitar duplicados (IMPORTANTE)
+    //Evitar duplicados (IMPORTANTE)
     const existente = await prisma.asistencia.findFirst({
       where: {
         id_inscripcion: inscripcion.id_inscripcion
@@ -137,7 +155,7 @@ exports.marcarAsistencia = async (req, res) => {
     });
 
     if (existente) {
-      // actualizar en lugar de crear
+      //Actualizar en lugar de crear
       await prisma.asistencia.update({
         where: { id_asistencia: existente.id_asistencia },
         data: { asistio }
@@ -146,12 +164,12 @@ exports.marcarAsistencia = async (req, res) => {
       return res.json({ message: "Asistencia actualizada" });
     }
 
-    // 🔥 crear correctamente
+    //Crear correctamente
     await prisma.asistencia.create({
       data: {
         id_usuario: inscripcion.id_usuario,
         id_inscripcion: inscripcion.id_inscripcion,
-        id_horario: inscripcion.id_horario, // 👈 ESTE ES EL FIX REAL
+        id_horario: inscripcion.id_horario,
         fecha: new Date(),
         asistio,
         id_registrado_por: inscripcion.id_usuario
@@ -175,7 +193,7 @@ exports.getAsistenciasAdmin = async (req, res) => {
   try {
     const { fecha, id_horario, estado, id_carrera, q } = req.query;
     
-    // 👈 CORRECCIÓN ZONA HORARIA: Manejo explícito de la fecha para evitar desfases
+    //CORRECCIÓN ZONA HORARIA: Manejo explícito de la fecha para evitar desfases
     let fechaFiltro = new Date(); // Si no hay fecha, usa HOY con la hora local actual
     
     if (fecha) {
@@ -348,7 +366,25 @@ exports.uploadAndHash = async (req, res) => {
 // 4. OBTENER HISTÓRICO
 exports.obtenerHistorico = async (req, res) => {
   try {
+    const { q } = req.query;
+
+    const where = {};
+
+    if (q && String(q).trim() !== '') {
+      const textoBusqueda = String(q).trim();
+      const posibleId = parseInt(textoBusqueda, 10);
+
+      where.OR = [
+        { nombre_archivo: { contains: textoBusqueda } }
+      ];
+
+      if (!Number.isNaN(posibleId)) {
+        where.OR.push({ id_historico: posibleId });
+      }
+    }
+
     const historico = await prisma.asistenciaHistorico.findMany({
+      where,
       orderBy: { fecha_lista: "desc" }
     });
     res.json(historico);
