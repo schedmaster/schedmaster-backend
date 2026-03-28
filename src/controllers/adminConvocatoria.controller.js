@@ -42,7 +42,25 @@ exports.crearPeriodo = async (req, res) => {
 =========================*/
 exports.obtenerPeriodos = async (req, res) => {
   try {
+    const { q } = req.query;
+
+    const where = {};
+
+    if (q && String(q).trim() !== '') {
+      const textoBusqueda = String(q).trim();
+      const posibleId = parseInt(textoBusqueda, 10);
+
+      where.OR = [
+        { nombre_periodo: { contains: textoBusqueda } }
+      ];
+
+      if (!Number.isNaN(posibleId)) {
+        where.OR.push({ id_periodo: posibleId });
+      }
+    }
+
     const periodos = await prisma.periodo.findMany({
+      where,
       orderBy: { id_periodo: 'desc' }
     });
 

@@ -3,6 +3,16 @@ const bcrypt = require('bcrypt');
 const { generateRSAKeyPair, decryptAESKeyWithRSA, decryptWithAES } = require('../lib/cryptoHelper');
 const { saveKey, consumeKey } = require('../lib/keyStore');
 
+function esContrasenaValida(password) {
+  if (typeof password !== 'string') return false;
+
+  const tieneLongitudMinima = password.length >= 8;
+  const tieneMayuscula = /[A-Z]/.test(password);
+  const tieneNumeroOSimbolo = /[0-9]|[^A-Za-z0-9]/.test(password);
+
+  return tieneLongitudMinima && tieneMayuscula && tieneNumeroOSimbolo;
+}
+
 /**
  * REGISTRO DE USUARIO
  */
@@ -23,6 +33,12 @@ exports.register = async (req, res) => {
     } = req.body;
 
     const correoNormalizado = correo.toLowerCase().trim();
+
+    if (!esContrasenaValida(password)) {
+      return res.status(400).json({
+        message: 'La contraseña debe tener al menos 8 caracteres, una mayúscula y un número o símbolo especial'
+      });
+    }
 
     const existe = await prisma.usuario.findUnique({ where: { correo: correoNormalizado } });
     if (existe) return res.status(400).json({ message: 'El correo ya está registrado' });
