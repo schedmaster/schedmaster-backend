@@ -65,6 +65,7 @@ model Usuario {
 
   asistenciasHistorico AsistenciaHistorico[]
   propuestas           Propuesta[]
+  bitacora BitacoraEntrada[]
   loginChallenges2FA   LoginChallenge2FA[]
 }
 
@@ -233,4 +234,15 @@ model Anuncio {
   fotografia         String?
   fecha_publicacion  DateTime @default(now())
   activo             Boolean  @default(true)
+}
+
+
+model BitacoraEntrada {
+  id_entrada   Int      @id @default(autoincrement())
+  id_usuario   Int
+  autor_nombre String
+  texto        String   @db.Text
+  fecha        DateTime @default(now())
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
 }

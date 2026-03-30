@@ -3,17 +3,21 @@ const router = express.Router();
 
 const {
   obtenerUsuariosFiltrados,
-  eliminarUsuario,
-  editarUsuario
+  toggleUsuario,
+  editarUsuario,
+  crearUsuario,
+  obtenerBitacora,
+  agregarBitacora,
 } = require('../controllers/adminUsuario.controller');
 
-// GET
-router.get('/', obtenerUsuariosFiltrados);
+// Usuarios
+router.get('/',              obtenerUsuariosFiltrados);
+router.post('/crear',        crearUsuario);
+router.put('/editar',        editarUsuario);
+router.put('/toggle',        toggleUsuario);        // activa Y desactiva
 
-// PUT eliminar
-router.put('/eliminar', eliminarUsuario);
-
-// PUT editar
-router.put('/editar', editarUsuario);
+// Bitácora
+router.get('/bitacora/:id_usuario',  obtenerBitacora);
+router.post('/bitacora',             agregarBitacora);
 
 module.exports = router;

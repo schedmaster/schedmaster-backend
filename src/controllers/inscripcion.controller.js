@@ -1,11 +1,13 @@
 const prisma = require('../../prisma/client')
 
+// 🧠 importar neurona
+const { evaluarUsuario } = require('../lib/neurona')
+
 // ==========================================
 // 1. OBTENER TODAS LAS INSCRIPCIONES PENDIENTES
 // ==========================================
 exports.obtenerPendientes = async (req, res) => {
   try {
-    // Buscar inscripciones con estado pendiente
     const inscripcionesPendientes = await prisma.inscripcion.findMany({
       where: {
         estado: 'pendiente'
@@ -25,13 +27,101 @@ exports.obtenerPendientes = async (req, res) => {
       }
     })
 
-    // Formatear datos para el frontend
-    const datosFormateados = inscripcionesPendientes.map(insc => {
-      // Calcular número de asistencias del usuario
-      const totalAsistencias = insc.usuario.asistencias ? insc.usuario.asistencias.length : 0
+    // =========================
+    // 🧠 PASO 1: calcular scores
+    // =========================
+    const conScore = inscripcionesPendientes.map(insc => {
+      const asistencias = insc.usuario.asistencias || []
 
-      // Determinar prioridad automáticamente
-      const prioridadCalculada = totalAsistencias > 3 ? 'alta' : 'baja'
+      const asistidas = asistencias.filter(a => a.asistio).length
+      const faltas = asistencias.length - asistidas
+
+      const score = evaluarUsuario({
+        asistencias: asistidas,
+        faltas: faltas
+      })
+
+      return {
+        ...insc,
+        score,
+        asistidas,
+        faltas
+      }
+    })
+
+    // =========================
+    // 🧠 PASO 2: agrupar por horario
+    // =========================
+    const grupos = {}
+
+    conScore.forEach(insc => {
+      const key = insc.id_horario
+      if (!grupos[key]) grupos[key] = []
+      grupos[key].push(insc)
+    })
+
+    // =========================
+    // 🧠 PASO 3: auto-aprobar por grupo
+    // =========================
+    for (const horarioId in grupos) {
+      const grupo = grupos[horarioId]
+
+      // ordenar por score (mejores primero)
+      grupo.sort((a, b) => b.score - a.score)
+
+      const capacidad = grupo[0].horario.capacidad_maxima
+      const limiteAuto = Math.max(capacidad - 2, 0)
+
+      // contar ya aprobados
+      const yaAprobados = await prisma.inscripcion.count({
+        where: {
+          id_horario: parseInt(horarioId),
+          estado: 'aprobado'
+        }
+      })
+
+      let disponibles = limiteAuto - yaAprobados
+
+      for (let i = 0; i < grupo.length; i++) {
+        if (disponibles <= 0) break
+
+        const insc = grupo[i]
+
+        // solo auto-aprobar si score alto
+        if (insc.score >= 0.8) {
+          await prisma.inscripcion.update({
+            where: {
+              id_inscripcion: insc.id_inscripcion
+            },
+            data: {
+              estado: 'aprobado',
+              fecha_decision: new Date()
+            }
+          })
+
+          // activar usuario
+          await prisma.usuario.update({
+            where: {
+              id_usuario: insc.usuario.id_usuario
+            },
+            data: {
+              activo: true
+            }
+          })
+
+          disponibles--
+        }
+      }
+    }
+
+    // =========================
+    // 🧾 PASO 4: devolver datos
+    // =========================
+    const datosFormateados = conScore.map(insc => {
+      let prioridadCalculada = 'baja'
+
+      if (insc.score >= 0.8) prioridadCalculada = 'alta'
+      else if (insc.score >= 0.5) prioridadCalculada = 'media'
 
       return {
         id_inscripcion: insc.id_inscripcion,
@@ -46,15 +136,17 @@ exports.obtenerPendientes = async (req, res) => {
         },
 
         prioridad: prioridadCalculada,
+        score: Number(insc.score.toFixed(3)),
+        asistencias: insc.asistidas,
+        faltas: insc.faltas,
+
         estado: insc.estado,
 
-        // Mantenemos la corrección de las horas para evitar el error de toTimeString()
         horario: {
           hora_inicio: insc.horario ? insc.horario.hora_inicio : null,
           hora_fin: insc.horario ? insc.horario.hora_fin : null
         },
 
-        // 🟢 Reversión: Enviamos el arreglo crudo porque el nuevo frontend ya hace el .map()
         diasSeleccionados: insc.diasSeleccionados
       }
     })
@@ -68,7 +160,6 @@ exports.obtenerPendientes = async (req, res) => {
     })
   }
 }
-
 // ==========================================
 // 2. APROBAR UNA INSCRIPCIÓN PENDIENTE
 // ==========================================
@@ -82,7 +173,6 @@ exports.aceptarInscripcion = async (req, res) => {
       })
     }
 
-    // Actualizar estado de inscripción
     const inscripcionActualizada = await prisma.inscripcion.update({
       where: {
         id_inscripcion: parseInt(id_inscripcion)
@@ -96,7 +186,6 @@ exports.aceptarInscripcion = async (req, res) => {
       }
     })
 
-    // Activar usuario en el sistema
     await prisma.usuario.update({
       where: {
         id_usuario: inscripcionActualizada.usuario.id_usuario
@@ -131,7 +220,6 @@ exports.rechazarInscripcion = async (req, res) => {
       })
     }
 
-    // Actualizar estado de inscripción
     await prisma.inscripcion.update({
       where: {
         id_inscripcion: parseInt(id_inscripcion)
