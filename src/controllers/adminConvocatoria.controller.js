@@ -31,7 +31,7 @@ exports.crearPeriodo = async (req, res) => {
     res.status(201).json(nuevo);
 
   } catch (error) {
-    console.error(error);
+    console.error('❌ Error crearPeriodo:', error);
     res.status(500).json({ message: 'Error al crear convocatoria' });
   }
 };
@@ -67,7 +67,7 @@ exports.obtenerPeriodos = async (req, res) => {
     res.json(periodos);
 
   } catch (error) {
-    console.error(error);
+    console.error('❌ Error obtenerPeriodos:', error);
     res.status(500).json({ message: 'Error al obtener convocatorias' });
   }
 };
@@ -90,6 +90,16 @@ exports.actualizarPeriodo = async (req, res) => {
       id_entrenador
     } = req.body;
 
+    // 🔍 obtener estado anterior
+    const periodoAntes = await prisma.periodo.findUnique({
+      where: { id_periodo: parseInt(id) }
+    });
+
+    if (!periodoAntes) {
+      return res.status(404).json({ message: 'Periodo no encontrado' });
+    }
+
+    // ✏️ actualizar
     const actualizado = await prisma.periodo.update({
       where: { id_periodo: parseInt(id) },
       data: {
@@ -103,10 +113,50 @@ exports.actualizarPeriodo = async (req, res) => {
       }
     });
 
+    // 🚀 lógica de correos SIN romper flujo
+    if (periodoAntes.estado !== 'activo' && estado === 'activo') {
+
+      // se ejecuta en segundo plano
+      setTimeout(async () => {
+        try {
+          const { sendConvocatoriaActivaEmail } = require('../lib/mailer'); // 👈 AJUSTA RUTA SI ES NECESARIO
+
+          const pendientes = await prisma.listaEspera.findMany({
+            where: { estado: 'pendiente' }
+          });
+
+          console.log(`📧 Enviando a ${pendientes.length} correos`);
+
+          if (pendientes.length > 0) {
+
+            await Promise.all(
+              pendientes.map(usuario =>
+                sendConvocatoriaActivaEmail({
+                  to: usuario.correo,
+                  periodo: actualizado
+                })
+              )
+            );
+
+            await prisma.listaEspera.updateMany({
+              where: { estado: 'pendiente' },
+              data: { estado: 'notificado' }
+            });
+
+            console.log('✅ Correos enviados y actualizados');
+          }
+
+        } catch (err) {
+          console.error('❌ Error enviando correos:', err);
+        }
+      }, 0);
+    }
+
+    // ✅ respuesta SIEMPRE
     res.json(actualizado);
 
   } catch (error) {
-    console.error(error);
+    console.error('❌ Error actualizarPeriodo:', error);
     res.status(500).json({ message: 'Error al actualizar convocatoria' });
   }
 };
