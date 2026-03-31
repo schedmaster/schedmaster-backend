@@ -203,41 +203,31 @@ exports.obtenerHistorico = async (req, res) => {
 ========================== */
 exports.getReporteEstadisticas = async (req, res) => {
   try {
-    // Buscamos todas las inscripciones aprobadas y traemos la data del usuario, carrera, horario y asistencias
     const inscripciones = await prisma.inscripcion.findMany({
       where: { estado: 'aprobado' },
       include: {
-        usuario: {
-          include: { carrera: true }
-        },
+        usuario: { include: { carrera: true } },
         horario: true,
-        asistencias: true
+        asistencias: true,
+        periodo: true // 👈 CORRECCIÓN: Ahora incluimos el periodo
       }
     });
 
     const reporte = inscripciones.map((ins, index) => {
-      // 1. Calculamos el total de asistencias en las que se le dio clic a "Presente" o "Ausente"
       const totalAsistencias = ins.asistencias.length;
-      
-      // 2. Calculamos cuántas de esas fueron "Presente"
       const asistenciasPresente = ins.asistencias.filter(a => a.asistio).length;
-      
-      // 3. Regla de 3 para el porcentaje
-      const porcentaje = totalAsistencias > 0 
-        ? Math.round((asistenciasPresente / totalAsistencias) * 100) 
-        : 0;
-
-      // Extraer matrícula del correo (por si su correo es 202171004@uteq.edu.mx)
+      const porcentaje = totalAsistencias > 0 ? Math.round((asistenciasPresente / totalAsistencias) * 100) : 0;
       const matriculaExtraida = ins.usuario.correo ? ins.usuario.correo.split('@')[0] : 'N/A';
 
       return {
-        id: ins.id_inscripcion || index, // Por si acaso
+        id: ins.id_inscripcion || index, 
         matricula: matriculaExtraida,
         nombre: `${ins.usuario.nombre} ${ins.usuario.apellido_paterno} ${ins.usuario.apellido_materno}`.trim(),
         carrera: ins.usuario.carrera?.nombre_carrera || 'N/A',
         servicio: ins.horario.tipo_actividad || 'General',
         asistencia: `${porcentaje}%`,
-        estado: ins.estado === 'aprobado' ? 'Activo' : 'Inactivo'
+        estado: ins.estado === 'aprobado' ? 'Activo' : 'Inactivo',
+        periodo: ins.periodo?.nombre_periodo || 'Sin periodo' // 👈 CORRECCIÓN: Lo enviamos al frontend
       };
     });
 
@@ -265,18 +255,16 @@ exports.getDashboardStats = async (req, res) => {
 
     const serviciosActivos = await prisma.periodo.count({ where: { estado: 'activo' } });
 
-    // 👈 NUEVO: Traer las últimas 5 inscripciones pendientes para la tabla rápida
     const ultimasPendientesRaw = await prisma.inscripcion.findMany({
       where: { estado: 'pendiente' },
       orderBy: { fecha_inscripcion: 'desc' },
-      take: 5, // Solo traemos 5 para no saturar el Dashboard
+      take: 5, 
       include: {
         usuario: { include: { carrera: true } },
         horario: true
       }
     });
 
-    // Formateamos los datos para que el Frontend los lea fácil
     const ultimasPendientes = ultimasPendientesRaw.map(ins => ({
       id: ins.id_inscripcion,
       nombre: `${ins.usuario.nombre} ${ins.usuario.apellido_paterno}`,
@@ -290,7 +278,7 @@ exports.getDashboardStats = async (req, res) => {
       usuariosRegistrados,
       asistenciasHoy,
       serviciosActivos,
-      ultimasPendientes // 👈 Lo agregamos a la respuesta
+      ultimasPendientes
     });
   } catch (error) {
     console.error("❌ Error obteniendo stats del dashboard:", error);
