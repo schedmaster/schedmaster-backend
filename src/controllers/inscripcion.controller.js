@@ -25,103 +25,25 @@ exports.obtenerPendientes = async (req, res) => {
           }
         }
       }
-    })
+    });
 
-    // =========================
-    // 🧠 PASO 1: calcular scores
-    // =========================
-    const conScore = inscripcionesPendientes.map(insc => {
-      const asistencias = insc.usuario.asistencias || []
+    // 🧠 Calcular score por inscripción
+    const datosFormateados = inscripcionesPendientes.map(insc => {
+      const asistencias = insc.usuario.asistencias || [];
+      const asistidas = asistencias.filter(a => a.asistio).length;
+      const faltas = asistencias.length - asistidas;
 
-      const asistidas = asistencias.filter(a => a.asistio).length
-      const faltas = asistencias.length - asistidas
+      // Si no tiene historial el score es null
+      let score = null;
+      let prioridadCalculada = 'normal';
 
-      const score = evaluarUsuario({
-        asistencias: asistidas,
-        faltas: faltas
-      })
+      if (asistencias.length > 0) {
+        score = evaluarUsuario({ asistencias: asistidas, faltas });
 
-      return {
-        ...insc,
-        score,
-        asistidas,
-        faltas
+        if (score >= 0.8) prioridadCalculada = 'alta';
+        else if (score >= 0.5) prioridadCalculada = 'media';
+        else prioridadCalculada = 'baja';
       }
-    })
-
-    // =========================
-    // 🧠 PASO 2: agrupar por horario
-    // =========================
-    const grupos = {}
-
-    conScore.forEach(insc => {
-      const key = insc.id_horario
-      if (!grupos[key]) grupos[key] = []
-      grupos[key].push(insc)
-    })
-
-    // =========================
-    // 🧠 PASO 3: auto-aprobar por grupo
-    // =========================
-    for (const horarioId in grupos) {
-      const grupo = grupos[horarioId]
-
-      // ordenar por score (mejores primero)
-      grupo.sort((a, b) => b.score - a.score)
-
-      const capacidad = grupo[0].horario.capacidad_maxima
-      const limiteAuto = Math.max(capacidad - 2, 0)
-
-      // contar ya aprobados
-      const yaAprobados = await prisma.inscripcion.count({
-        where: {
-          id_horario: parseInt(horarioId),
-          estado: 'aprobado'
-        }
-      })
-
-      let disponibles = limiteAuto - yaAprobados
-
-      for (let i = 0; i < grupo.length; i++) {
-        if (disponibles <= 0) break
-
-        const insc = grupo[i]
-
-        // solo auto-aprobar si score alto
-        if (insc.score >= 0.8) {
-          await prisma.inscripcion.update({
-            where: {
-              id_inscripcion: insc.id_inscripcion
-            },
-            data: {
-              estado: 'aprobado',
-              fecha_decision: new Date()
-            }
-          })
-
-          // activar usuario
-          await prisma.usuario.update({
-            where: {
-              id_usuario: insc.usuario.id_usuario
-            },
-            data: {
-              activo: true
-            }
-          })
-
-          disponibles--
-        }
-      }
-    }
-
-    // =========================
-    // 🧾 PASO 4: devolver datos
-    // =========================
-    const datosFormateados = conScore.map(insc => {
-      let prioridadCalculada = 'baja'
-
-      if (insc.score >= 0.8) prioridadCalculada = 'alta'
-      else if (insc.score >= 0.5) prioridadCalculada = 'media'
 
       return {
         id_inscripcion: insc.id_inscripcion,
@@ -136,30 +58,30 @@ exports.obtenerPendientes = async (req, res) => {
         },
 
         prioridad: prioridadCalculada,
-        score: Number(insc.score.toFixed(3)),
-        asistencias: insc.asistidas,
-        faltas: insc.faltas,
+        score: score !== null ? Number(score.toFixed(3)) : null,
+        asistencias: asistidas,
+        faltas,
 
         estado: insc.estado,
 
         horario: {
-          hora_inicio: insc.horario ? insc.horario.hora_inicio : null,
-          hora_fin: insc.horario ? insc.horario.hora_fin : null
+          hora_inicio: insc.horario?.hora_inicio ?? null,
+          hora_fin: insc.horario?.hora_fin ?? null
         },
 
         diasSeleccionados: insc.diasSeleccionados
-      }
-    })
+      };
+    });
 
-    res.status(200).json(datosFormateados)
+    res.status(200).json(datosFormateados);
 
   } catch (error) {
-    console.error('Error al obtener inscripciones:', error)
+    console.error('Error al obtener inscripciones:', error);
     res.status(500).json({
       message: 'Error interno del servidor'
-    })
+    });
   }
-}
+};
 // ==========================================
 // 2. APROBAR UNA INSCRIPCIÓN PENDIENTE
 // ==========================================
