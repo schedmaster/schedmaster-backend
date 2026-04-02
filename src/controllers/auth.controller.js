@@ -23,6 +23,12 @@ exports.register = async (req, res) => {
     } = req.body;
 
     const correoNormalizado = correo.toLowerCase().trim();
+    // Validar correo institucional
+if (!correoNormalizado.endsWith('@uteq.edu.mx')) {
+  return res.status(400).json({
+    message: 'Solo se permiten correos institucionales (@uteq.edu.mx)'
+  });
+}
 
     const existe = await prisma.usuario.findUnique({ where: { correo: correoNormalizado } });
     if (existe) return res.status(400).json({ message: 'El correo ya está registrado' });
