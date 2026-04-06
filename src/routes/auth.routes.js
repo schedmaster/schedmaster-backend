@@ -7,5 +7,7 @@ router.get('/public-key', auth.getPublicKey);
 
 router.post('/register', auth.register);
 router.post('/login', auth.login);
+router.post('/verify-2fa', auth.verify2FA);
+router.post('/resend-2fa', auth.resend2FA);
 
 module.exports = router;

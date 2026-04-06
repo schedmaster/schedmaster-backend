@@ -1,4 +1,43 @@
 const prisma = require('../../prisma/client')
+const { evaluarUsuario } = require('../lib/neurona')
+
+// ==========================================
+// HELPER — verificar lugares disponibles
+// ==========================================
+const verificarLugares = async (id_horario, diasIds, client = prisma) => {
+
+  const horario = await client.horario.findUnique({
+    where: { id_horario: parseInt(id_horario) }
+  })
+
+  if (!horario) throw new Error('Horario no encontrado')
+
+  let minimoDisponible = Infinity
+
+  for (const id_dia of diasIds) {
+
+    const ocupados = await client.inscripcion.count({
+      where: {
+        id_horario: parseInt(id_horario),
+        estado: 'aprobado',
+        diasSeleccionados: {
+          some: { id_dia: parseInt(id_dia) }
+        }
+      }
+    })
+
+    const disponibles = horario.capacidad_maxima - ocupados  // ← corregido
+
+    if (disponibles < minimoDisponible) minimoDisponible = disponibles
+
+  }
+
+  return {
+    disponibles: minimoDisponible,
+    capacidad: horario.capacidad_maxima                      // ← corregido
+  }
+
+}
 
 // ==========================================
 // 1. OBTENER TODAS LAS INSCRIPCIONES PENDIENTES + GRAFICA
@@ -7,9 +46,7 @@ exports.obtenerPendientes = async (req, res) => {
   try {
 
     const inscripcionesPendientes = await prisma.inscripcion.findMany({
-      where: {
-        estado: 'pendiente'
-      },
+      where: { estado: 'pendiente' },
       include: {
         usuario: {
           include: {
@@ -18,11 +55,7 @@ exports.obtenerPendientes = async (req, res) => {
         },
         
         horario: true,
-        diasSeleccionados: {
-          include: {
-            dia: true
-          }
-        }
+        diasSeleccionados: { include: { dia: true } }
       }
     })
 
@@ -34,6 +67,9 @@ exports.obtenerPendientes = async (req, res) => {
         id_inscripcion: insc.id_inscripcion,
         usuario: insc.usuario,
         prioridad: prioridadCalculada,
+        score: score !== null ? Number(score.toFixed(3)) : null,
+        asistencias: asistidas,
+        faltas,
         estado: insc.estado,
         horario: {
           hora_inicio: insc.horario?.hora_inicio,
@@ -41,6 +77,7 @@ exports.obtenerPendientes = async (req, res) => {
         },
         diasSeleccionados: insc.diasSeleccionados
       }
+
     })
 
     // 🔥 GRAFICA CON DÍAS (sin romper nada)
@@ -98,9 +135,7 @@ const grafica = horarios.map(h => {
 
   } catch (error) {
     console.error('Error al obtener inscripciones:', error)
-    res.status(500).json({
-      message: 'Error interno del servidor'
-    })
+    res.status(500).json({ message: 'Error interno del servidor' })
   }
 }
 
@@ -110,6 +145,7 @@ const grafica = horarios.map(h => {
 // ==========================================
 exports.aceptarInscripcion = async (req, res) => {
   try {
+
     const { id_inscripcion } = req.body
 
     if (!id_inscripcion) {
@@ -144,6 +180,7 @@ exports.aceptarInscripcion = async (req, res) => {
 // ==========================================
 exports.rechazarInscripcion = async (req, res) => {
   try {
+
     const { id_inscripcion } = req.body
 
     if (!id_inscripcion) {

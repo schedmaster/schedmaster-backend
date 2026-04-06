@@ -17,25 +17,3 @@ const upload = multer({ storage });
 
 /* ==========================
    RUTAS DEL MÓDULO
-========================== */
-
-// Obtener datos para la tabla principal
-router.get("/admin", adminAsistenciaController.getAsistenciasAdmin);
-
-// Registrar o actualizar asistencia (al dar clic en el botón de la tabla)
-router.post("/registrar", adminAsistenciaController.registrarAsistencia);
-
-// Subir archivo PDF/Excel y generar hash de seguridad
-router.post(
-  "/upload-and-hash",
-  upload.single("archivo"),
-  adminAsistenciaController.uploadAndHash
-);
-
-// Ver el historial de archivos subidos
-router.get("/historico", adminAsistenciaController.obtenerHistorico);
-
-// 👈 NUEVA RUTA: Generar reporte completo de estadísticas
-router.get("/reporte", adminAsistenciaController.getReporteEstadisticas);
-
-module.exports = router;
