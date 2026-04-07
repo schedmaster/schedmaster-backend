@@ -18,44 +18,63 @@ async function main() {
   console.log('✅ Roles inyectados');
 
   // 🔹 DIVISIONES (Con IDs fijos porque las carreras dependen de estos números)
-  await prisma.division.createMany({
-    data: [
-      { id_division: 1, nombre_division: 'División de Tecnologías de la Información', siglas: 'DTAI' },
-      { id_division: 2, nombre_division: 'División de Mecatrónica', siglas: 'DMEC' },
-      { id_division: 3, nombre_division: 'División de Industrial', siglas: 'DIND' },
-      { id_division: 4, nombre_division: 'División Económico Administrativa', siglas: 'DEA' },
-      { id_division: 5, nombre_division: 'División Ambiental y Energía', siglas: 'DAE' }
-    ],
-    skipDuplicates: true
-  })
+ await prisma.division.createMany({
+  data: [
+    { id_division: 1, nombre_division: 'División Industrial', siglas: 'DIND' },
+    { id_division: 2, nombre_division: 'División de Tecnologías de la Información', siglas: 'DTI' },
+    { id_division: 3, nombre_division: 'División Económico-Administrativa', siglas: 'DEA' },
+    { id_division: 4, nombre_division: 'División Química, Ambiental y Salud', siglas: 'DQAS' },
+    { id_division: 5, nombre_division: 'División de Idiomas y Educación', siglas: 'DIE' }
+  ],
+  skipDuplicates: true
+})
   console.log('✅ Divisiones inyectadas');
 
-  // 🔹 CARRERAS
-  await prisma.carrera.createMany({
-    data: [
-      { nombre_carrera: 'Ingeniería Mecatrónica', modalidad: 'Intensiva y Mixta', id_division: 2 },
-      { nombre_carrera: 'Ingeniería en Tecnologías de la Información e Innovación Digital', modalidad: null, id_division: 1 },
-      { nombre_carrera: 'Ingeniería en Energía y Desarrollo Sostenible', modalidad: null, id_division: 5 },
-      { nombre_carrera: 'Ingeniería Ambiental y Sustentabilidad', modalidad: null, id_division: 5 },
-      { nombre_carrera: 'Agricultura Sustentable y Protegida', modalidad: null, id_division: 5 },
-      { nombre_carrera: 'Licenciatura en Administración', modalidad: null, id_division: 4 },
-      { nombre_carrera: 'Licenciatura en Negocios y Mercadotecnia', modalidad: null, id_division: 4 },
-      { nombre_carrera: 'Ingeniería en Logística', modalidad: null, id_division: 3 },
-      { nombre_carrera: 'Licenciatura en Contaduría', modalidad: 'Vespertina y Mixta', id_division: 4 },
-      { nombre_carrera: 'Ingeniería en Mantenimiento Industrial', modalidad: null, id_division: 3 },
-      { nombre_carrera: 'Ingeniería en Nanotecnología', modalidad: null, id_division: 5 },
-      { nombre_carrera: 'Ingeniería Industrial', modalidad: null, id_division: 3 },
-      { nombre_carrera: 'Ingeniería Mecánica', modalidad: null, id_division: 2 },
-      { nombre_carrera: 'Ingeniería Mecánica Automotriz', modalidad: null, id_division: 2 },
-      { nombre_carrera: 'Ingeniería en Microelectrónica y Semiconductores', modalidad: null, id_division: 2 },
-      { nombre_carrera: 'Licenciatura en Educación en Enseñanza del Idioma Inglés', modalidad: null, id_division: 4 },
-      { nombre_carrera: 'Maestría en Ingeniería para la Manufactura Inteligente en Competencias Profesionales', modalidad: null, id_division: 3 },
-      { nombre_carrera: 'Maestría en Dirección Logística y Cadena de Suministro Sostenible', modalidad: null, id_division: 3 },
-      { nombre_carrera: 'Maestría en Economía Circular', modalidad: null, id_division: 5 }
-    ],
-    skipDuplicates: true
-  })
-  console.log('✅ Carreras inyectadas');
+ // 🔹 CARRERAS
+await prisma.carrera.createMany({
+  data: [
+
+    // DIVISIÓN INDUSTRIAL
+    { nombre_carrera: 'Mantenimiento Industrial', modalidad: 'Intensiva', id_division: 1 },
+    { nombre_carrera: 'Mecatrónica (Automatización)', modalidad: 'Intensiva', id_division: 1 },
+    { nombre_carrera: 'Mecatrónica (Sistemas de Manufactura)', modalidad: 'Intensiva', id_division: 1 },
+    { nombre_carrera: 'Ingeniería Industrial', modalidad: 'Intensiva', id_division: 1 },
+    { nombre_carrera: 'Ingeniería Mecánica', modalidad: 'Intensiva', id_division: 1 },
+    { nombre_carrera: 'Mecánica Automotriz (Sistemas Automotrices)', modalidad: 'Intensiva', id_division: 1 },
+    { nombre_carrera: 'Mecánica Automotriz (Diseño y Manufactura)', modalidad: 'Intensiva', id_division: 1 },
+    { nombre_carrera: 'Procesos Productivos (Manufactura)', modalidad: 'Intensiva', id_division: 1 },
+    { nombre_carrera: 'Procesos Productivos (Plásticos)', modalidad: 'Intensiva', id_division: 1 },
+
+    // DIVISIÓN TECNOLOGÍAS DE LA INFORMACIÓN
+    { nombre_carrera: 'Desarrollo de Software Multiplataforma', modalidad: 'Intensiva', id_division: 2 },
+    { nombre_carrera: 'Infraestructura de Redes Digitales (Ciberseguridad)', modalidad: 'Intensiva', id_division: 2 },
+    { nombre_carrera: 'Entornos Virtuales y Negocios Digitales', modalidad: 'Intensiva', id_division: 2 },
+    { nombre_carrera: 'Inteligencia Artificial', modalidad: 'Intensiva', id_division: 2 },
+    { nombre_carrera: 'Ciencia de Datos', modalidad: 'Intensiva', id_division: 2 },
+
+    // DIVISIÓN ECONÓMICO ADMINISTRATIVA
+    { nombre_carrera: 'Administración (Capital Humano)', modalidad: 'Intensiva', id_division: 3 },
+    { nombre_carrera: 'Desarrollo de Negocios (Mercadotecnia)', modalidad: 'Intensiva', id_division: 3 },
+    { nombre_carrera: 'Contaduría', modalidad: 'Intensiva', id_division: 3 },
+    { nombre_carrera: 'Logística (Cadena de Suministro)', modalidad: 'Intensiva', id_division: 3 },
+    { nombre_carrera: 'Logística (Transporte y Movilidad)', modalidad: 'Intensiva', id_division: 3 },
+
+    // DIVISIÓN QUÍMICA AMBIENTAL Y SALUD
+    { nombre_carrera: 'Tecnología Ambiental (Sustentabilidad)', modalidad: 'Intensiva', id_division: 4 },
+    { nombre_carrera: 'Nanotecnología', modalidad: 'Intensiva', id_division: 4 },
+    { nombre_carrera: 'Química Industrial', modalidad: 'Intensiva', id_division: 4 },
+    { nombre_carrera: 'Energías Renovables (Energía Turbo Solar)', modalidad: 'Intensiva', id_division: 4 },
+    { nombre_carrera: 'Agricultura Sustentable y Protegida', modalidad: 'Intensiva', id_division: 4 },
+
+    // DIVISIÓN IDIOMAS Y EDUCACIÓN
+    { nombre_carrera: 'Licenciatura en Educación', modalidad: 'Intensiva', id_division: 5 },
+    { nombre_carrera: 'Enseñanza del Idioma Inglés', modalidad: 'Intensiva', id_division: 5 }
+
+  ],
+  skipDuplicates: true
+})
+
+console.log('✅ Carreras inyectadas');
 
   // 🔹 DIAS DE LA SEMANA (Con IDs fijos)
   await prisma.dia.createMany({
@@ -117,13 +136,13 @@ await prisma.usuario.upsert({
 
 // 🔹 USUARIO ADMIN 4
 await prisma.usuario.upsert({
-  where: { correo: 'schedmasteruteq+3@gmail.com' },
+  where: { correo: 'pazk703@gmail.com' },
   update: {},
   create: {
     nombre: 'Admin4',
     apellido_paterno: 'General',
     apellido_materno: 'Sistema',
-    correo: 'schedmasteruteq+3@gmail.com',
+    correo: 'pazk703@gmail.com',
     contrasena: '$2b$10$zeMxbmo87RvxdD1AGEzuGujxu7sQwxq/LxI/mxo8G3aQmzQ..xUrO',
     cuatrimestre: 1,
     id_rol: 4
