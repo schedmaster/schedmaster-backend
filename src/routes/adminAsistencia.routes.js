@@ -35,7 +35,10 @@ router.post(
 // Ver historial de archivos
 router.get("/historico", adminAsistenciaController.obtenerHistorico);
 
-// Generar reporte de estadísticas
+// Generar reporte completo de estadísticas
 router.get("/reporte", adminAsistenciaController.getReporteEstadisticas);
+
+// Obtener las métricas y datos para el Dashboard
+router.get("/dashboard-stats", adminAsistenciaController.getDashboardStats);
 
 module.exports = router;
