@@ -78,12 +78,72 @@ async function main() {
       nombre: 'Admin',
       apellido_paterno: 'General',
       apellido_materno: 'Sistema',
-      correo: 'admin@uteq.edu.mx',
+      correo: 'schedmasteruteq@gmail.com',
       contrasena: '$2b$10$zeMxbmo87RvxdD1AGEzuGujxu7sQwxq/LxI/mxo8G3aQmzQ..xUrO',
       cuatrimestre: 1,
       id_rol: 4
     }
   })
+
+  // 🔹 USUARIO ADMIN 2
+await prisma.usuario.upsert({
+  where: { correo: 'herrera.roxy23@gmail.com' },
+  update: {},
+  create: {
+    nombre: 'Admin2',
+    apellido_paterno: 'General',
+    apellido_materno: 'Sistema',
+    correo: 'herrera.roxy23@gmail.com',
+    contrasena: '$2b$10$zeMxbmo87RvxdD1AGEzuGujxu7sQwxq/LxI/mxo8G3aQmzQ..xUrO',
+    cuatrimestre: 1,
+    id_rol: 4
+  }
+})
+
+// 🔹 USUARIO ADMIN 3
+await prisma.usuario.upsert({
+  where: { correo: 'ricardorg261205@gmail.com' },
+  update: {},
+  create: {
+    nombre: 'Admin3',
+    apellido_paterno: 'General',
+    apellido_materno: 'Sistema',
+    correo: 'ricardorg261205@gmail.com',
+    contrasena: '$2b$10$zeMxbmo87RvxdD1AGEzuGujxu7sQwxq/LxI/mxo8G3aQmzQ..xUrO',
+    cuatrimestre: 1,
+    id_rol: 4
+  }
+})
+
+// 🔹 USUARIO ADMIN 4
+await prisma.usuario.upsert({
+  where: { correo: 'schedmasteruteq+3@gmail.com' },
+  update: {},
+  create: {
+    nombre: 'Admin4',
+    apellido_paterno: 'General',
+    apellido_materno: 'Sistema',
+    correo: 'schedmasteruteq+3@gmail.com',
+    contrasena: '$2b$10$zeMxbmo87RvxdD1AGEzuGujxu7sQwxq/LxI/mxo8G3aQmzQ..xUrO',
+    cuatrimestre: 1,
+    id_rol: 4
+  }
+})
+
+// 🔹 USUARIO ADMIN 5
+await prisma.usuario.upsert({
+  where: { correo: 'schedmasteruteq+4@gmail.com' },
+  update: {},
+  create: {
+    nombre: 'Admin5',
+    apellido_paterno: 'General',
+    apellido_materno: 'Sistema',
+    correo: 'schedmasteruteq+4@gmail.com',
+    contrasena: '$2b$10$zeMxbmo87RvxdD1AGEzuGujxu7sQwxq/LxI/mxo8G3aQmzQ..xUrO',
+    cuatrimestre: 1,
+    id_rol: 4
+  }
+})
   console.log('✅ Administrador creado');
 
   // 🔹 USUARIO ENTRENADOR (Necesario para abrir convocatorias)
