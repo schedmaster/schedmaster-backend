@@ -19,6 +19,19 @@ function esContrasenaValida(password) {
 }
 
 /**
+ * OBTENER CLAVE PÚBLICA RSA
+ */
+exports.getPublicKey = (req, res) => {
+  try {
+    const { publicKey, privateKey } = generateRSAKeyPair();
+    const keyId = saveKey(privateKey);
+    return res.json({ keyId, publicKey });
+  } catch (error) {
+    console.error('Error generando par RSA:', error);
+    res.status(500).json({ message: 'Error interno del servidor' });
+  }
+};
+/**
  * REGISTRO DE USUARIO
  */
 exports.register = async (req, res) => {
@@ -38,6 +51,12 @@ exports.register = async (req, res) => {
     } = req.body;
 
     const correoNormalizado = correo.toLowerCase().trim();
+    // Validar correo institucional
+if (!correoNormalizado.endsWith('@uteq.edu.mx')) {
+  return res.status(400).json({
+    message: 'Solo se permiten correos institucionales (@uteq.edu.mx)'
+  });
+}
 
     if (!esContrasenaValida(password)) {
       return res.status(400).json({
@@ -45,35 +64,68 @@ exports.register = async (req, res) => {
       });
     }
 
-    const existe = await prisma.usuario.findUnique({ where: { correo: correoNormalizado } });
-    if (existe) return res.status(400).json({ message: 'El correo ya está registrado' });
+    // 🔍 Buscar si el correo ya existe
+    const usuarioExistente = await prisma.usuario.findUnique({
+      where: { correo: correoNormalizado }
+    });
+
+    // ❌ Si existe y está activo → rechazar
+    if (usuarioExistente && usuarioExistente.activo) {
+      return res.status(400).json({ message: 'El correo ya está registrado y en uso' });
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const nuevoUsuario = await prisma.$transaction(async (tx) => {
       const rol = parseInt(id_rol);
-
-      // Activo automático solo para entrenador y admin
       const activoAutomatico = rol === 3 || rol === 4;
 
-      const user = await tx.usuario.create({
-        data: {
-          nombre,
-          apellido_paterno,
-          apellido_materno,
-          correo: correoNormalizado,
-          contrasena: hashedPassword,
-          id_carrera: id_carrera ? parseInt(id_carrera) : null,
-          id_division: id_division ? parseInt(id_division) : null,
-          cuatrimestre: cuatrimestre ? parseInt(cuatrimestre) : 1,
-          id_rol: rol,
-          activo: activoAutomatico
-        }
-      });
+      let user;
+
+      if (usuarioExistente && !usuarioExistente.activo) {
+        // ♻️ Usuario inactivo → actualizar datos y reactivar
+        user = await tx.usuario.update({
+          where: { correo: correoNormalizado },
+          data: {
+            nombre,
+            apellido_paterno,
+            apellido_materno,
+            contrasena: hashedPassword,
+            id_carrera: id_carrera ? parseInt(id_carrera) : null,
+            id_division: id_division ? parseInt(id_division) : null,
+            cuatrimestre: cuatrimestre ? parseInt(cuatrimestre) : 1,
+            id_rol: rol,
+            activo: activoAutomatico || (rol === 1 || rol === 2)
+          }
+        });
+
+        console.log(`♻️ Usuario reactivado: ${correoNormalizado}`);
+
+      } else {
+        // 🆕 Usuario nuevo
+        user = await tx.usuario.create({
+          data: {
+            nombre,
+            apellido_paterno,
+            apellido_materno,
+            correo: correoNormalizado,
+            contrasena: hashedPassword,
+            id_carrera: id_carrera ? parseInt(id_carrera) : null,
+            id_division: id_division ? parseInt(id_division) : null,
+            cuatrimestre: cuatrimestre ? parseInt(cuatrimestre) : 1,
+            id_rol: rol,
+            activo: activoAutomatico
+          }
+        });
+      }
 
       // Solo estudiantes y docentes crean inscripción
       if (rol === 1 || rol === 2) {
-        const periodoActivo = await tx.periodo.findFirst({ where: { estado: 'activo' }, select: { id_periodo: true } });
+        const periodoActivo = await tx.periodo.findFirst({
+          where: { estado: 'activo' },
+          select: { id_periodo: true }
+        });
+
         if (!periodoActivo) throw new Error('No existe un periodo activo');
 
         const inscripcion = await tx.inscripcion.create({
@@ -95,15 +147,54 @@ exports.register = async (req, res) => {
             }))
           });
         }
+
+        // 🧠 Evaluar con neurona solo si es usuario reactivado con historial
+        if (usuarioExistente && !usuarioExistente.activo) {
+          const { evaluarUsuario } = require('../lib/neurona');
+
+          const todasAsistencias = await tx.asistencia.findMany({
+            where: { id_usuario: user.id_usuario }
+          });
+
+          const asistidas = todasAsistencias.filter(a => a.asistio).length;
+          const faltas = todasAsistencias.length - asistidas;
+
+          if (todasAsistencias.length > 0) {
+            const score = evaluarUsuario({ asistencias: asistidas, faltas });
+            const prioridad = score >= 0.8 ? 'alta' : score >= 0.5 ? 'media' : 'baja';
+
+            // Actualizar prioridad siempre
+            await tx.inscripcion.update({
+              where: { id_inscripcion: inscripcion.id_inscripcion },
+              data: { prioridad }
+            });
+
+            // Auto-aprobar si score alto
+            if (score >= 0.8) {
+              await tx.inscripcion.update({
+                where: { id_inscripcion: inscripcion.id_inscripcion },
+                data: {
+                  estado: 'aprobado',
+                  fecha_decision: new Date()
+                }
+              });
+
+              console.log(`🧠 Auto-aprobado por neurona (score: ${score.toFixed(3)}): ${correoNormalizado}`);
+            }
+          }
+        }
       }
 
       return user;
     });
 
     const { contrasena: _, ...usuarioSeguro } = nuevoUsuario;
+    const esReactivado = !!(usuarioExistente && !usuarioExistente.activo);
 
     res.status(201).json({
-      message: 'Usuario registrado correctamente.',
+      message: esReactivado
+        ? 'Usuario reactivado e inscrito correctamente.'
+        : 'Usuario registrado correctamente.',
       usuario: usuarioSeguro
     });
 
@@ -115,23 +206,6 @@ exports.register = async (req, res) => {
     });
   }
 };
-
-
-/**
- * OBTENER CLAVE PÚBLICA RSA
- */
-exports.getPublicKey = (req, res) => {
-  try {
-    const { publicKey, privateKey } = generateRSAKeyPair();
-    const keyId = saveKey(privateKey);
-    return res.json({ keyId, publicKey });
-  } catch (error) {
-    console.error('Error generando par RSA:', error);
-    res.status(500).json({ message: 'Error interno del servidor' });
-  }
-};
-
-
 exports.login = async (req, res) => {
   try {
     const { keyId, encryptedKey, iv, encryptedData } = req.body;

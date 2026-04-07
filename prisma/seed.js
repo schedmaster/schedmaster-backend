@@ -72,7 +72,7 @@ async function main() {
 
   // 🔹 USUARIO ADMIN
   await prisma.usuario.upsert({
-    where: { correo: 'admin@uteq.edu.mx' },
+    where: { correo: 'schedmasteruteq@gmail.com' },
     update: {},
     create: {
       nombre: 'Admin',

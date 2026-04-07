@@ -69,5 +69,94 @@ async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
   });
 }
 
+
+
+async function sendConvocatoriaActivaEmail({ to, periodo }) {
+  try {
+    const appName = process.env.APP_NAME || "SchedMaster";
+
+    const html = `
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:20px;font-family:Arial;">
+        <tr>
+          <td align="center">
+            
+            <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #ddd;">
+              
+              <!-- HEADER -->
+              <tr>
+                <td style="background:#2563eb;color:#ffffff;padding:20px;text-align:center;">
+                  <h2 style="margin:0;">Nueva Convocatoria</h2>
+                  <p style="margin:5px 0 0;">${appName}</p>
+                </td>
+              </tr>
+
+              <!-- BODY -->
+              <tr>
+                <td style="padding:20px;">
+                  <p style="font-size:16px;">Se ha abierto un nuevo periodo:</p>
+
+                  <table width="100%" cellpadding="10" cellspacing="0" style="background:#f3f4f6;border-radius:8px;margin:15px 0;">
+                    <tr>
+                      <td><strong>${periodo.nombre_periodo}</strong></td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <b>Inicio:</b> ${new Date(periodo.fecha_inicio_inscripcion).toLocaleDateString()}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <b>Fin:</b> ${new Date(periodo.fecha_fin_inscripcion).toLocaleDateString()}
+                      </td>
+                    </tr>
+                  </table>
+
+                  <p>Puedes ingresar al sistema para registrarte.</p>
+
+                  <!-- BOTON -->
+                  <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
+                    <tr>
+                      <td align="center">
+                        <a href="http://localhost:3000/login"
+                           style="background:#2563eb;color:#ffffff;padding:12px 20px;text-decoration:none;border-radius:5px;display:inline-block;">
+                          Ir al sistema
+                        </a>
+                      </td>
+                    </tr>
+                  </table>
+
+                </td>
+              </tr>
+
+              <!-- FOOTER -->
+              <tr>
+                <td style="background:#f9fafb;text-align:center;padding:10px;font-size:12px;color:#777;">
+                  © 2026 ${appName}
+                </td>
+              </tr>
+
+            </table>
+
+          </td>
+        </tr>
+      </table>
+    `;
+
+    const info = await transporter.sendMail({
+      from: process.env.MAIL_FROM || process.env.MAIL_USER,
+      to,
+      subject: `${appName} - Convocatoria abierta`,
+      html
+    });
+
+    console.log("✅ Correo enviado:", info.response);
+
+  } catch (error) {
+    console.error("❌ Error enviando correo:", error);
+  }
+}
+
+  
 module.exports = transporter;
 module.exports.sendLogin2FACodeEmail = sendLogin2FACodeEmail;
+module.exports.sendConvocatoriaActivaEmail = sendConvocatoriaActivaEmail;

@@ -38,7 +38,7 @@ router.get("/historico", adminAsistenciaController.obtenerHistorico);
 // Generar reporte completo de estadísticas
 router.get("/reporte", adminAsistenciaController.getReporteEstadisticas);
 
-// 👈 NUEVA RUTA: Obtener las métricas y datos para el Dashboard
+// Obtener las métricas y datos para el Dashboard
 router.get("/dashboard-stats", adminAsistenciaController.getDashboardStats);
 
 module.exports = router;
