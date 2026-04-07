@@ -22,20 +22,20 @@ const upload = multer({ storage });
 // Obtener datos para la tabla principal
 router.get("/admin", adminAsistenciaController.getAsistenciasAdmin);
 
-// Registrar o actualizar asistencia (al dar clic en el botón de la tabla)
+// Registrar o actualizar asistencia
 router.post("/registrar", adminAsistenciaController.registrarAsistencia);
 
-// Subir archivo PDF/Excel y generar hash de seguridad
+// Subir archivo PDF/Excel y generar hash
 router.post(
   "/upload-and-hash",
   upload.single("archivo"),
   adminAsistenciaController.uploadAndHash
 );
 
-// Ver el historial de archivos subidos
+// Ver historial de archivos
 router.get("/historico", adminAsistenciaController.obtenerHistorico);
 
-// 👈 NUEVA RUTA: Generar reporte completo de estadísticas
+// Generar reporte de estadísticas
 router.get("/reporte", adminAsistenciaController.getReporteEstadisticas);
 
 module.exports = router;
