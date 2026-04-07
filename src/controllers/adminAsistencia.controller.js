@@ -209,7 +209,7 @@ exports.getReporteEstadisticas = async (req, res) => {
         usuario: { include: { carrera: true } },
         horario: true,
         asistencias: true,
-        periodo: true // 👈 CORRECCIÓN: Ahora incluimos el periodo
+        periodo: true
       }
     });
 
@@ -227,7 +227,7 @@ exports.getReporteEstadisticas = async (req, res) => {
         servicio: ins.horario.tipo_actividad || 'General',
         asistencia: `${porcentaje}%`,
         estado: ins.estado === 'aprobado' ? 'Activo' : 'Inactivo',
-        periodo: ins.periodo?.nombre_periodo || 'Sin periodo' // 👈 CORRECCIÓN: Lo enviamos al frontend
+        periodo: ins.periodo?.nombre_periodo || 'Sin periodo'
       };
     });
 
@@ -239,49 +239,87 @@ exports.getReporteEstadisticas = async (req, res) => {
 };
 
 /* ==========================
-   6. OBTENER STATS PRINCIPALES PARA EL DASHBOARD
+   6. OBTENER STATS PRINCIPALES PARA EL DASHBOARD (VERSIÓN COMPLETA ARLET)
 ========================== */
 exports.getDashboardStats = async (req, res) => {
   try {
+    const ahora = new Date();
+    
+    // 1. LAS 4 TARJETAS PRINCIPALES
     const inscripcionesPendientes = await prisma.inscripcion.count({ where: { estado: 'pendiente' } });
     const usuariosRegistrados = await prisma.usuario.count({ where: { activo: true } });
-
-    const hoy = new Date();
-    const inicioDia = new Date(hoy.setHours(0, 0, 0, 0));
-    const finDia = new Date(hoy.setHours(23, 59, 59, 999));
+    
+    const inicioDia = new Date(ahora.setHours(0, 0, 0, 0));
+    const finDia = new Date(ahora.setHours(23, 59, 59, 999));
     const asistenciasHoy = await prisma.asistencia.count({
       where: { fecha: { gte: inicioDia, lte: finDia }, asistio: true }
     });
-
     const serviciosActivos = await prisma.periodo.count({ where: { estado: 'activo' } });
 
-    const ultimasPendientesRaw = await prisma.inscripcion.findMany({
-      where: { estado: 'pendiente' },
-      orderBy: { fecha_inscripcion: 'desc' },
-      take: 5, 
-      include: {
-        usuario: { include: { carrera: true } },
-        horario: true
-      }
+    // 2. KPIs AVANZADOS (Fila de 5 tarjetas)
+    const totalInteresados = await prisma.listaEspera.count();
+    const totalNotificados = await prisma.listaEspera.count({ where: { estado: { not: 'pendiente' } } });
+    const totalInscritos = await prisma.inscripcion.count({ where: { estado: 'aprobado' } });
+    const totalAnuncios = await prisma.anuncio.count();
+
+    // Calcular asistencia promedio global
+    const todasAsistencias = await prisma.asistencia.findMany();
+    const asistenciasPresente = todasAsistencias.filter(a => a.asistio).length;
+    const asistenciaProm = todasAsistencias.length > 0 
+      ? parseFloat(((asistenciasPresente / todasAsistencias.length) * 100).toFixed(1)) 
+      : 0;
+
+    // 3. INSIGHTS (Tarjetas de texto)
+    const tasaConversion = totalInteresados > 0 
+      ? ((totalInscritos / totalInteresados) * 100).toFixed(1) 
+      : "0.0";
+
+    // 4. TENDENCIA MENSUAL (Gráfica últimos 12 meses)
+    const inscripcionesMes = new Array(12).fill(0);
+    const interesadosMes = new Array(12).fill(0);
+    
+    const unAnoAtras = new Date(new Date().setFullYear(new Date().getFullYear() - 1));
+
+    // Agrupar inscripciones por mes
+    const inscripcionesHistoricas = await prisma.inscripcion.findMany({
+      where: { fecha_inscripcion: { gte: unAnoAtras } },
+      select: { fecha_inscripcion: true }
+    });
+    
+    inscripcionesHistoricas.forEach(ins => {
+      const d = new Date(ins.fecha_inscripcion);
+      const mesesAtras = (new Date().getFullYear() - d.getFullYear()) * 12 + (new Date().getMonth() - d.getMonth());
+      if (mesesAtras >= 0 && mesesAtras < 12) inscripcionesMes[11 - mesesAtras]++;
     });
 
-    const ultimasPendientes = ultimasPendientesRaw.map(ins => ({
-      id: ins.id_inscripcion,
-      nombre: `${ins.usuario.nombre} ${ins.usuario.apellido_paterno}`,
-      carrera: ins.usuario.carrera?.nombre_carrera || 'N/A',
-      servicio: ins.horario.tipo_actividad || 'General',
-      fecha: ins.fecha_inscripcion
-    }));
+    // Agrupar interesados (Lista de Espera) por mes
+    const interesadosHistoricos = await prisma.listaEspera.findMany({
+      where: { fecha_registro: { gte: unAnoAtras } },
+      select: { fecha_registro: true }
+    });
 
+    interesadosHistoricos.forEach(int => {
+      const d = new Date(int.fecha_registro);
+      const mesesAtras = (new Date().getFullYear() - d.getFullYear()) * 12 + (new Date().getMonth() - d.getMonth());
+      if (mesesAtras >= 0 && mesesAtras < 12) interesadosMes[11 - mesesAtras]++;
+    });
+
+    // Enviar TODO empaquetado al frontend
     res.json({
-      inscripcionesPendientes,
-      usuariosRegistrados,
-      asistenciasHoy,
-      serviciosActivos,
-      ultimasPendientes
+      basicos: { inscripcionesPendientes, usuariosRegistrados, asistenciasHoy, serviciosActivos },
+      kpis: {
+        interesados: totalInteresados,
+        notificados: totalNotificados,
+        inscritos: totalInscritos,
+        asistencia: asistenciaProm,
+        anuncios: totalAnuncios
+      },
+      insights: { conversion: tasaConversion },
+      tendencias: { inscripcionesMes, interesadosMes }
     });
+
   } catch (error) {
-    console.error("❌ Error obteniendo stats del dashboard:", error);
+    console.error("❌ Error obteniendo stats:", error);
     res.status(500).json({ message: "Error al obtener estadísticas del dashboard" });
   }
 };

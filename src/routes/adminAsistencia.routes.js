@@ -35,7 +35,10 @@ router.post(
 // Ver el historial de archivos subidos
 router.get("/historico", adminAsistenciaController.obtenerHistorico);
 
-// 👈 NUEVA RUTA: Generar reporte completo de estadísticas
+// Generar reporte completo de estadísticas
 router.get("/reporte", adminAsistenciaController.getReporteEstadisticas);
+
+// 👈 NUEVA RUTA: Obtener las métricas y datos para el Dashboard
+router.get("/dashboard-stats", adminAsistenciaController.getDashboardStats);
 
 module.exports = router;
