@@ -1,10 +1,8 @@
 const crypto = require("crypto");
 const fs = require("fs");
-const prisma = require("../../prisma/client"); // 👈 ESTA ES LA LÍNEA MÁGICA QUE FALTABA
+const prisma = require("../../prisma/client");
 
-/* ==========================
-   1. OBTENER DATOS PARA LA TABLA DE MONITOREO
-========================== */
+
 exports.getAsistenciasAdmin = async (req, res) => {
   try {
     const { fecha, id_horario, estado, id_carrera } = req.query;
@@ -72,9 +70,7 @@ exports.getAsistenciasAdmin = async (req, res) => {
   }
 };
 
-/* ==========================
-   2. REGISTRAR ASISTENCIA (EL BOTÓN DE LA TABLA)
-========================== */
+
 exports.registrarAsistencia = async (req, res) => {
   try {
     const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por, fecha_registro } = req.body;
@@ -130,9 +126,7 @@ exports.registrarAsistencia = async (req, res) => {
   }
 };
 
-/* ==========================
-   3. SUBIR ARCHIVO Y GENERAR HASH 
-========================== */
+
 exports.uploadAndHash = async (req, res) => {
   try {
     const file = req.file;
@@ -166,9 +160,7 @@ exports.uploadAndHash = async (req, res) => {
   }
 };
 
-/* ==========================
-   4. OBTENER HISTÓRICO
-========================== */
+
 exports.obtenerHistorico = async (req, res) => {
   try {
     const { q } = req.query;
@@ -198,36 +190,44 @@ exports.obtenerHistorico = async (req, res) => {
   }
 };
 
-/* ==========================
-   5. GENERAR REPORTE COMPLETO DE ESTADÍSTICAS
-========================== */
+
 exports.getReporteEstadisticas = async (req, res) => {
   try {
+    // Buscamos todas las inscripciones aprobadas y traemos la data del usuario, carrera, horario y asistencias
     const inscripciones = await prisma.inscripcion.findMany({
       where: { estado: 'aprobado' },
       include: {
-        usuario: { include: { carrera: true } },
+        usuario: {
+          include: { carrera: true }
+        },
         horario: true,
-        asistencias: true,
-        periodo: true
+        asistencias: true
       }
     });
 
     const reporte = inscripciones.map((ins, index) => {
+      // 1. Calculamos el total de asistencias en las que se le dio clic a "Presente" o "Ausente"
       const totalAsistencias = ins.asistencias.length;
+      
+      // 2. Calculamos cuántas de esas fueron "Presente"
       const asistenciasPresente = ins.asistencias.filter(a => a.asistio).length;
-      const porcentaje = totalAsistencias > 0 ? Math.round((asistenciasPresente / totalAsistencias) * 100) : 0;
+      
+      // 3. Regla de 3 para el porcentaje
+      const porcentaje = totalAsistencias > 0 
+        ? Math.round((asistenciasPresente / totalAsistencias) * 100) 
+        : 0;
+
+      // Extraer matrícula del correo (por si su correo es 202171004@uteq.edu.mx)
       const matriculaExtraida = ins.usuario.correo ? ins.usuario.correo.split('@')[0] : 'N/A';
 
       return {
-        id: ins.id_inscripcion || index, 
+        id: ins.id_inscripcion || index, // Por si acaso
         matricula: matriculaExtraida,
         nombre: `${ins.usuario.nombre} ${ins.usuario.apellido_paterno} ${ins.usuario.apellido_materno}`.trim(),
         carrera: ins.usuario.carrera?.nombre_carrera || 'N/A',
         servicio: ins.horario.tipo_actividad || 'General',
         asistencia: `${porcentaje}%`,
-        estado: ins.estado === 'aprobado' ? 'Activo' : 'Inactivo',
-        periodo: ins.periodo?.nombre_periodo || 'Sin periodo'
+        estado: ins.estado === 'aprobado' ? 'Activo' : 'Inactivo'
       };
     });
 
@@ -238,88 +238,50 @@ exports.getReporteEstadisticas = async (req, res) => {
   }
 };
 
-/* ==========================
-   6. OBTENER STATS PRINCIPALES PARA EL DASHBOARD (VERSIÓN COMPLETA ARLET)
-========================== */
+
 exports.getDashboardStats = async (req, res) => {
   try {
-    const ahora = new Date();
-    
-    // 1. LAS 4 TARJETAS PRINCIPALES
     const inscripcionesPendientes = await prisma.inscripcion.count({ where: { estado: 'pendiente' } });
     const usuariosRegistrados = await prisma.usuario.count({ where: { activo: true } });
-    
-    const inicioDia = new Date(ahora.setHours(0, 0, 0, 0));
-    const finDia = new Date(ahora.setHours(23, 59, 59, 999));
+
+    const hoy = new Date();
+    const inicioDia = new Date(hoy.setHours(0, 0, 0, 0));
+    const finDia = new Date(hoy.setHours(23, 59, 59, 999));
     const asistenciasHoy = await prisma.asistencia.count({
       where: { fecha: { gte: inicioDia, lte: finDia }, asistio: true }
     });
+
     const serviciosActivos = await prisma.periodo.count({ where: { estado: 'activo' } });
 
-    // 2. KPIs AVANZADOS (Fila de 5 tarjetas)
-    const totalInteresados = await prisma.listaEspera.count();
-    const totalNotificados = await prisma.listaEspera.count({ where: { estado: { not: 'pendiente' } } });
-    const totalInscritos = await prisma.inscripcion.count({ where: { estado: 'aprobado' } });
-    const totalAnuncios = await prisma.anuncio.count();
-
-    // Calcular asistencia promedio global
-    const todasAsistencias = await prisma.asistencia.findMany();
-    const asistenciasPresente = todasAsistencias.filter(a => a.asistio).length;
-    const asistenciaProm = todasAsistencias.length > 0 
-      ? parseFloat(((asistenciasPresente / todasAsistencias.length) * 100).toFixed(1)) 
-      : 0;
-
-    // 3. INSIGHTS (Tarjetas de texto)
-    const tasaConversion = totalInteresados > 0 
-      ? ((totalInscritos / totalInteresados) * 100).toFixed(1) 
-      : "0.0";
-
-    // 4. TENDENCIA MENSUAL (Gráfica últimos 12 meses)
-    const inscripcionesMes = new Array(12).fill(0);
-    const interesadosMes = new Array(12).fill(0);
-    
-    const unAnoAtras = new Date(new Date().setFullYear(new Date().getFullYear() - 1));
-
-    // Agrupar inscripciones por mes
-    const inscripcionesHistoricas = await prisma.inscripcion.findMany({
-      where: { fecha_inscripcion: { gte: unAnoAtras } },
-      select: { fecha_inscripcion: true }
-    });
-    
-    inscripcionesHistoricas.forEach(ins => {
-      const d = new Date(ins.fecha_inscripcion);
-      const mesesAtras = (new Date().getFullYear() - d.getFullYear()) * 12 + (new Date().getMonth() - d.getMonth());
-      if (mesesAtras >= 0 && mesesAtras < 12) inscripcionesMes[11 - mesesAtras]++;
+    // 👈 NUEVO: Traer las últimas 5 inscripciones pendientes para la tabla rápida
+    const ultimasPendientesRaw = await prisma.inscripcion.findMany({
+      where: { estado: 'pendiente' },
+      orderBy: { fecha_inscripcion: 'desc' },
+      take: 5, // Solo traemos 5 para no saturar el Dashboard
+      include: {
+        usuario: { include: { carrera: true } },
+        horario: true
+      }
     });
 
-    // Agrupar interesados (Lista de Espera) por mes
-    const interesadosHistoricos = await prisma.listaEspera.findMany({
-      where: { fecha_registro: { gte: unAnoAtras } },
-      select: { fecha_registro: true }
-    });
+    // Formateamos los datos para que el Frontend los lea fácil
+    const ultimasPendientes = ultimasPendientesRaw.map(ins => ({
+      id: ins.id_inscripcion,
+      nombre: `${ins.usuario.nombre} ${ins.usuario.apellido_paterno}`,
+      carrera: ins.usuario.carrera?.nombre_carrera || 'N/A',
+      servicio: ins.horario.tipo_actividad || 'General',
+      fecha: ins.fecha_inscripcion
+    }));
 
-    interesadosHistoricos.forEach(int => {
-      const d = new Date(int.fecha_registro);
-      const mesesAtras = (new Date().getFullYear() - d.getFullYear()) * 12 + (new Date().getMonth() - d.getMonth());
-      if (mesesAtras >= 0 && mesesAtras < 12) interesadosMes[11 - mesesAtras]++;
-    });
-
-    // Enviar TODO empaquetado al frontend
     res.json({
-      basicos: { inscripcionesPendientes, usuariosRegistrados, asistenciasHoy, serviciosActivos },
-      kpis: {
-        interesados: totalInteresados,
-        notificados: totalNotificados,
-        inscritos: totalInscritos,
-        asistencia: asistenciaProm,
-        anuncios: totalAnuncios
-      },
-      insights: { conversion: tasaConversion },
-      tendencias: { inscripcionesMes, interesadosMes }
+      inscripcionesPendientes,
+      usuariosRegistrados,
+      asistenciasHoy,
+      serviciosActivos,
+      ultimasPendientes // 👈 Lo agregamos a la respuesta
     });
-
   } catch (error) {
-    console.error("❌ Error obteniendo stats:", error);
+    console.error("❌ Error obteniendo stats del dashboard:", error);
     res.status(500).json({ message: "Error al obtener estadísticas del dashboard" });
   }
 };

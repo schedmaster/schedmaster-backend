@@ -35,7 +35,7 @@ router.post(
 // Ver historial de archivos
 router.get("/historico", adminAsistenciaController.obtenerHistorico);
 
-// Generar reporte completo de estadísticas
+// Generar reporte de estadísticas
 router.get("/reporte", adminAsistenciaController.getReporteEstadisticas);
 
 // Obtener las métricas y datos para el Dashboard
