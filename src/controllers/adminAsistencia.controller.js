@@ -72,9 +72,7 @@ exports.getAsistenciasAdmin = async (req, res) => {
   }
 };
 
-/* ==========================
-   2. REGISTRAR ASISTENCIA (EL BOTÓN DE LA TABLA)
-========================== */
+
 exports.registrarAsistencia = async (req, res) => {
   try {
     const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por, fecha_registro } = req.body;
