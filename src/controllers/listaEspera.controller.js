@@ -45,3 +45,24 @@ exports.registrarCorreo = async (req, res) => {
     res.status(500).json({ message: 'Error del servidor' });
   }
 };
+
+exports.getConvocatoriaActiva = async (req, res) => {
+  try {
+    const periodoActivo = await prisma.periodo.findFirst({
+      where: { estado: 'activo' }
+    });
+
+    if (!periodoActivo) {
+      return res.json({ activa: false });
+    }
+
+    return res.json({
+      activa: true,
+      periodo: periodoActivo
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Error del servidor' });
+  }
+};
