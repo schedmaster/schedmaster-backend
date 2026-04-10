@@ -1,20 +1,16 @@
 require("dotenv").config();
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // STARTTLS
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+async function sendMail({ from, to, subject, text, html }) {
+  try {
+    await resend.emails.send({ from, to, subject, text, html });
+    console.log("✅ Servidor de correo oficial listo");
+  } catch (error) {
+    console.log("❌ Error Mailer:", error);
   }
-});
-
-transporter.verify((error) => {
-  if (error) console.log("❌ Error Mailer:", error);
-  else console.log("✅ Servidor de correo oficial listo");
-});
+}
 
 async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
   const appName = process.env.APP_NAME || "SchedMaster";
@@ -37,12 +33,10 @@ async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
             <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#4d5f73;">
               Recibimos una solicitud para iniciar sesion en tu cuenta. Usa este codigo de verificacion:
             </p>
-
             <div style="margin:0 0 18px;padding:18px 12px;border-radius:14px;background:#f0f8ff;border:1px dashed #7cc8e7;text-align:center;">
               <div style="font-size:12px;font-weight:700;letter-spacing:1.2px;color:#1e4f73;text-transform:uppercase;margin-bottom:8px;">Codigo de verificacion</div>
               <div style="font-size:38px;font-weight:800;letter-spacing:9px;color:#0b3555;line-height:1;">${safeCode}</div>
             </div>
-
             <p style="margin:0 0 12px;font-size:14px;color:#4d5f73;">
               Este codigo expira en <strong>${safeTtl} minutos</strong> y solo se puede usar una vez.
             </p>
@@ -55,23 +49,21 @@ async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
     </div>
   `;
 
-  await transporter.sendMail({
-    from: process.env.MAIL_FROM || process.env.MAIL_USER,
+  await sendMail({
+    from: process.env.MAIL_FROM || "SchedMaster <onboarding@resend.dev>",
     to,
     subject: `${appName} - Codigo de verificacion`,
     text: [
-      `Hola ${name || ''},`,
+      `Hola ${safeName},`,
       '',
-      `Tu codigo de verificacion es: ${code}`,
-      `Este codigo expira en ${ttlMinutes} minutos.`,
+      `Tu codigo de verificacion es: ${safeCode}`,
+      `Este codigo expira en ${safeTtl} minutos.`,
       '',
       'Si no solicitaste este inicio de sesion, ignora este mensaje.'
     ].join('\n'),
     html
   });
 }
-
-
 
 async function sendConvocatoriaActivaEmail({ to, periodo }) {
   try {
@@ -81,84 +73,57 @@ async function sendConvocatoriaActivaEmail({ to, periodo }) {
       <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:20px;font-family:Arial;">
         <tr>
           <td align="center">
-            
             <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid #ddd;">
-              
-              <!-- HEADER -->
               <tr>
                 <td style="background:#2563eb;color:#ffffff;padding:20px;text-align:center;">
                   <h2 style="margin:0;">Nueva Convocatoria</h2>
                   <p style="margin:5px 0 0;">${appName}</p>
                 </td>
               </tr>
-
-              <!-- BODY -->
               <tr>
                 <td style="padding:20px;">
                   <p style="font-size:16px;">Se ha abierto un nuevo periodo:</p>
-
                   <table width="100%" cellpadding="10" cellspacing="0" style="background:#f3f4f6;border-radius:8px;margin:15px 0;">
-                    <tr>
-                      <td><strong>${periodo.nombre_periodo}</strong></td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <b>Inicio:</b> ${new Date(periodo.fecha_inicio_inscripcion).toLocaleDateString()}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <b>Fin:</b> ${new Date(periodo.fecha_fin_inscripcion).toLocaleDateString()}
-                      </td>
-                    </tr>
+                    <tr><td><strong>${periodo.nombre_periodo}</strong></td></tr>
+                    <tr><td><b>Inicio:</b> ${new Date(periodo.fecha_inicio_inscripcion).toLocaleDateString()}</td></tr>
+                    <tr><td><b>Fin:</b> ${new Date(periodo.fecha_fin_inscripcion).toLocaleDateString()}</td></tr>
                   </table>
-
                   <p>Puedes ingresar al sistema para registrarte.</p>
-
-                  <!-- BOTON -->
                   <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
                     <tr>
                       <td align="center">
-                        <a href="http://localhost:3000/login"
+                        <a href="${process.env.FRONTEND_URL || 'https://schedmaster-frontend.vercel.app'}/login"
                            style="background:#2563eb;color:#ffffff;padding:12px 20px;text-decoration:none;border-radius:5px;display:inline-block;">
                           Ir al sistema
                         </a>
                       </td>
                     </tr>
                   </table>
-
                 </td>
               </tr>
-
-              <!-- FOOTER -->
               <tr>
                 <td style="background:#f9fafb;text-align:center;padding:10px;font-size:12px;color:#777;">
                   © 2026 ${appName}
                 </td>
               </tr>
-
             </table>
-
           </td>
         </tr>
       </table>
     `;
 
-    const info = await transporter.sendMail({
-      from: process.env.MAIL_FROM || process.env.MAIL_USER,
+    await sendMail({
+      from: process.env.MAIL_FROM || "SchedMaster <onboarding@resend.dev>",
       to,
       subject: `${appName} - Convocatoria abierta`,
       html
     });
 
-    console.log("✅ Correo enviado:", info.response);
-
+    console.log("✅ Correo de convocatoria enviado");
   } catch (error) {
     console.error("❌ Error enviando correo:", error);
   }
 }
 
-  
-module.exports = transporter;
 module.exports.sendLogin2FACodeEmail = sendLogin2FACodeEmail;
 module.exports.sendConvocatoriaActivaEmail = sendConvocatoriaActivaEmail;
