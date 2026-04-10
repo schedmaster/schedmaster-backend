@@ -1,4 +1,4 @@
-const transporter = require('../lib/mailer')
+const { sendMail } = require('../lib/mailer')
 const prisma = require('../../prisma/client')
 
 // ==========================================
@@ -121,12 +121,12 @@ const enviarPropuesta = async (req, res) => {
       </div>
     `
 
-    await transporter.sendMail({
-      from: `"SchedMaster UTEQ" <${process.env.MAIL_USER}>`,
-      to: correo,
-      subject: 'Propuesta de horario para tu inscripción',
-      html
-    })
+    await sendMail({
+  from: process.env.MAIL_FROM || "SchedMaster <onboarding@resend.dev>",
+  to: correo,
+  subject: 'Propuesta de horario para tu inscripción',
+  html
+})
 
     res.json({
       message: 'Propuesta enviada correctamente',
