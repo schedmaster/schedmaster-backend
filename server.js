@@ -22,11 +22,21 @@ const prisma = new PrismaClient();
 // ==========================================
 
 // Configuración de CORS más explícita para evitar el "Failed to fetch"
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://schedmaster-frontend.vercel.app'
+];
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'https://schedmaster-frontend.vercel.app'
-  ],
+  origin: function (origin, callback) {
+    console.log("🌍 Origin recibido:", origin);
+
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, origin); // 👈 CLAVE
+    } else {
+      callback(new Error('No permitido por CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
