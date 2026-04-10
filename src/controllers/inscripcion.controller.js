@@ -60,25 +60,30 @@ exports.obtenerPendientes = async (req, res) => {
     })
 
     const datosFormateados = inscripcionesPendientes.map(insc => {
-      const totalAsistencias = insc.usuario.asistencias?.length || 0
-      const prioridadCalculada = totalAsistencias > 3 ? 'alta' : 'baja'
+  const totalAsistencias = insc.usuario.asistencias?.length || 0;
+  const asistidas = insc.usuario.asistencias?.filter(a => a.asistio).length || 0;
+  const faltas = totalAsistencias - asistidas;
 
-      return {
-        id_inscripcion: insc.id_inscripcion,
-        usuario: insc.usuario,
-        prioridad: prioridadCalculada,
-        score: score !== null ? Number(score.toFixed(3)) : null,
-        asistencias: asistidas,
-        faltas,
-        estado: insc.estado,
-        horario: {
-          hora_inicio: insc.horario?.hora_inicio,
-          hora_fin: insc.horario?.hora_fin
-        },
-        diasSeleccionados: insc.diasSeleccionados
-      }
+  const score = totalAsistencias > 0 ? evaluarUsuario({ asistencias: asistidas, faltas }) : null;
+  const prioridadCalculada = score !== null
+    ? (score >= 0.8 ? 'alta' : score >= 0.5 ? 'media' : 'baja')
+    : 'normal';
 
-    })
+  return {
+    id_inscripcion: insc.id_inscripcion,
+    usuario: insc.usuario,
+    prioridad: prioridadCalculada,
+    score: score !== null ? Number(score.toFixed(3)) : null,
+    asistencias: asistidas,
+    faltas,
+    estado: insc.estado,
+    horario: {
+      hora_inicio: insc.horario?.hora_inicio,
+      hora_fin: insc.horario?.hora_fin
+    },
+    diasSeleccionados: insc.diasSeleccionados
+  };
+});
 
     // 🔥 GRAFICA CON DÍAS (sin romper nada)
 const horarios = await prisma.horario.findMany({
