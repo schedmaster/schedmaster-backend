@@ -23,9 +23,13 @@ const prisma = new PrismaClient();
 
 // Configuración de CORS más explícita para evitar el "Failed to fetch"
 app.use(cors({
-  origin: 'http://localhost:3000', // El puerto de tu Next.js
+  origin: [
+    'http://localhost:3000',
+    'https://schedmaster-frontend.vercel.app'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 app.use(express.json());
