@@ -1,12 +1,20 @@
 require("dotenv").config();
-const { Resend } = require("resend");
+const nodemailer = require("nodemailer");
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: "smtp-relay.brevo.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.BREVO_USER,
+    pass: process.env.BREVO_PASS
+  }
+});
 
 async function sendMail({ from, to, subject, text, html }) {
   try {
-    await resend.emails.send({ from, to, subject, text, html });
-    console.log("✅ Servidor de correo oficial listo");
+    await transporter.sendMail({ from, to, subject, text, html });
+    console.log("✅ Correo enviado correctamente");
   } catch (error) {
     console.log("❌ Error Mailer:", error);
   }
@@ -50,7 +58,7 @@ async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
   `;
 
   await sendMail({
-    from: process.env.MAIL_FROM || "SchedMaster <onboarding@resend.dev>",
+    from: process.env.MAIL_FROM || "SchedMaster <a7c330001@smtp-brevo.com>",
     to,
     subject: `${appName} - Codigo de verificacion`,
     text: [
@@ -113,7 +121,7 @@ async function sendConvocatoriaActivaEmail({ to, periodo }) {
     `;
 
     await sendMail({
-      from: process.env.MAIL_FROM || "SchedMaster <onboarding@resend.dev>",
+      from: process.env.MAIL_FROM || "SchedMaster <a7c330001@smtp-brevo.com>",
       to,
       subject: `${appName} - Convocatoria abierta`,
       html
