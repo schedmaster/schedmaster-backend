@@ -127,3 +127,4 @@ async function sendConvocatoriaActivaEmail({ to, periodo }) {
 
 module.exports.sendLogin2FACodeEmail = sendLogin2FACodeEmail;
 module.exports.sendConvocatoriaActivaEmail = sendConvocatoriaActivaEmail;
+module.exports.sendMail = sendMail;
