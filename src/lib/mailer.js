@@ -9,7 +9,7 @@ async function sendMail({ from, to, subject, text, html }) {
         "api-key": process.env.BREVO_API_KEY
       },
       body: JSON.stringify({
-        sender: { name: "SchedMaster", email: "schedmasteruteq@gmail.com" },
+        sender: { name: "SchedMaster", email: "a7c330001@smtp-brevo.com" },
         to: [{ email: to }],
         subject,
         textContent: text,
