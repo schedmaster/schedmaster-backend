@@ -176,8 +176,14 @@ async function verifyLogin2FAChallenge(challengeId, code) {
         include: {
           horario: {
             include: {
-              periodo: true
+              periodo: true,
+              horarioDias: {
+                include: { dia: true }
+              }
             }
+          },
+          diasSeleccionados: {
+            include: { dia: true }
           },
           propuestas: {
             include: {
