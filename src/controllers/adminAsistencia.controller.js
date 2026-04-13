@@ -7,16 +7,13 @@ exports.getAsistenciasAdmin = async (req, res) => {
   try {
     const { fecha, id_horario, estado, id_carrera } = req.query;
     
-    //CORRECCIÓN ZONA HORARIA: Manejo explícito de la fecha para evitar desfases
-    let fechaFiltro = new Date(); // Si no hay fecha, usa HOY con la hora local actual
+    let fechaFiltro = new Date();
     
     if (fecha) {
-      // Si mandan '2026-03-24', lo partimos para crear una fecha local exacta sin UTC shift
       const partes = fecha.split('-'); 
       fechaFiltro = new Date(partes[0], partes[1] - 1, partes[2]); 
     }
 
-    // Creamos los límites de ESE día específico (desde las 00:00:00 hasta las 23:59:59)
     const inicioDia = new Date(fechaFiltro);
     inicioDia.setHours(0, 0, 0, 0);
     
@@ -75,7 +72,6 @@ exports.registrarAsistencia = async (req, res) => {
   try {
     const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por, fecha_registro } = req.body;
 
-    // Usamos la fecha que mande el frontend (si está viendo un día pasado), o usamos HOY
     let fechaAfectar = new Date();
     if (fecha_registro) {
       const partes = fecha_registro.split('-');
@@ -88,7 +84,6 @@ exports.registrarAsistencia = async (req, res) => {
     const finDia = new Date(fechaAfectar);
     finDia.setHours(23, 59, 59, 999);
 
-    // Verificamos si ya existe una asistencia para ESE DÍA ESPECÍFICO
     const asistenciaExistente = await prisma.asistencia.findFirst({
       where: {
         id_usuario: Number(id_usuario),
@@ -98,21 +93,18 @@ exports.registrarAsistencia = async (req, res) => {
 
     let resultado;
     
-    // Si estamos modificando una asistencia que ya se tomó hoy (o el día seleccionado)
     if (asistenciaExistente) {
       resultado = await prisma.asistencia.update({
         where: { id_asistencia: asistenciaExistente.id_asistencia },
-        // Actualizamos el estado, pero usamos la hora local exacta para que no se desfase
         data: { asistio: Boolean(asistio), fecha: new Date() } 
       });
     } else {
-      // Es un registro nuevo para ese día
       resultado = await prisma.asistencia.create({
         data: {
           id_usuario: Number(id_usuario),
           id_inscripcion: Number(id_inscripcion),
           id_horario: Number(id_horario),
-          fecha: new Date(), // Guardamos el timestamp exacto del momento del clic
+          fecha: new Date(),
           asistio: Boolean(asistio),
           id_registrado_por: Number(id_registrado_por || 1)
         }
@@ -193,7 +185,6 @@ exports.obtenerHistorico = async (req, res) => {
 
 exports.getReporteEstadisticas = async (req, res) => {
   try {
-    // Buscamos todas las inscripciones aprobadas y traemos la data del usuario, carrera, horario y asistencias
     const inscripciones = await prisma.inscripcion.findMany({
       where: { estado: 'aprobado' },
       include: {
@@ -206,22 +197,16 @@ exports.getReporteEstadisticas = async (req, res) => {
     });
 
     const reporte = inscripciones.map((ins, index) => {
-      // 1. Calculamos el total de asistencias en las que se le dio clic a "Presente" o "Ausente"
       const totalAsistencias = ins.asistencias.length;
-      
-      // 2. Calculamos cuántas de esas fueron "Presente"
       const asistenciasPresente = ins.asistencias.filter(a => a.asistio).length;
-      
-      // 3. Regla de 3 para el porcentaje
       const porcentaje = totalAsistencias > 0 
         ? Math.round((asistenciasPresente / totalAsistencias) * 100) 
         : 0;
 
-      // Extraer matrícula del correo (por si su correo es 202171004@uteq.edu.mx)
       const matriculaExtraida = ins.usuario.correo ? ins.usuario.correo.split('@')[0] : 'N/A';
 
       return {
-        id: ins.id_inscripcion || index, // Por si acaso
+        id: ins.id_inscripcion || index,
         matricula: matriculaExtraida,
         nombre: `${ins.usuario.nombre} ${ins.usuario.apellido_paterno} ${ins.usuario.apellido_materno}`.trim(),
         carrera: ins.usuario.carrera?.nombre_carrera || 'N/A',
@@ -241,45 +226,84 @@ exports.getReporteEstadisticas = async (req, res) => {
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    const inscripcionesPendientes = await prisma.inscripcion.count({ where: { estado: 'pendiente' } });
-    const usuariosRegistrados = await prisma.usuario.count({ where: { activo: true } });
 
-    const hoy = new Date();
-    const inicioDia = new Date(hoy.setHours(0, 0, 0, 0));
-    const finDia = new Date(hoy.setHours(23, 59, 59, 999));
+    // ── BÁSICOS ──────────────────────────────────────────────────
+    const inscripcionesPendientes = await prisma.inscripcion.count({ where: { estado: 'pendiente' } });
+    const usuariosRegistrados    = await prisma.usuario.count({ where: { activo: true } });
+    const serviciosActivos       = await prisma.periodo.count({ where: { estado: 'activo' } });
+
+    const hoyInicio = new Date(); hoyInicio.setHours(0, 0, 0, 0);
+    const hoyFin    = new Date(); hoyFin.setHours(23, 59, 59, 999);
     const asistenciasHoy = await prisma.asistencia.count({
-      where: { fecha: { gte: inicioDia, lte: finDia }, asistio: true }
+      where: { fecha: { gte: hoyInicio, lte: hoyFin }, asistio: true }
     });
 
-    const serviciosActivos = await prisma.periodo.count({ where: { estado: 'activo' } });
+    // ── KPIs ─────────────────────────────────────────────────────
+    const interesados  = await prisma.listaEspera.count();
+    const notificados  = await prisma.listaEspera.count({ where: { notificado: true } });
+    const inscritos    = await prisma.inscripcion.count({ where: { estado: 'aprobado' } });
+    const anuncios     = await prisma.anuncio.count({ where: { activo: true } });
 
-    // 👈 NUEVO: Traer las últimas 5 inscripciones pendientes para la tabla rápida
-    const ultimasPendientesRaw = await prisma.inscripcion.findMany({
-      where: { estado: 'pendiente' },
-      orderBy: { fecha_inscripcion: 'desc' },
-      take: 5, // Solo traemos 5 para no saturar el Dashboard
-      include: {
-        usuario: { include: { carrera: true } },
-        horario: true
+    // Asistencia promedio global
+    const todasAsistencias   = await prisma.asistencia.count();
+    const asistenciasPresente = await prisma.asistencia.count({ where: { asistio: true } });
+    const asistenciaPromedio = todasAsistencias > 0
+      ? Math.round((asistenciasPresente / todasAsistencias) * 100)
+      : 0;
+
+    // ── INSIGHTS ─────────────────────────────────────────────────
+    const conversion = interesados > 0
+      ? ((inscritos / interesados) * 100).toFixed(1)
+      : "0.0";
+
+    // ── TENDENCIAS — últimos 12 meses ────────────────────────────
+    const ahora = new Date();
+    const inscripcionesMes = Array(12).fill(0);
+    const interesadosMes   = Array(12).fill(0);
+
+    for (let i = 0; i < 12; i++) {
+      // Mes i: 11 meses atrás hasta el mes actual
+      const inicio = new Date(ahora.getFullYear(), ahora.getMonth() - 11 + i, 1);
+      const fin    = new Date(ahora.getFullYear(), ahora.getMonth() - 11 + i + 1, 0, 23, 59, 59, 999);
+
+      inscripcionesMes[i] = await prisma.inscripcion.count({
+        where: {
+          estado: 'aprobado',
+          fecha_inscripcion: { gte: inicio, lte: fin }
+        }
+      });
+
+      interesadosMes[i] = await prisma.listaEspera.count({
+        where: {
+          fecha_registro: { gte: inicio, lte: fin }
+        }
+      });
+    }
+
+    // ── RESPUESTA con la estructura que espera el frontend ───────
+    res.json({
+      basicos: {
+        inscripcionesPendientes,
+        usuariosRegistrados,
+        asistenciasHoy,
+        serviciosActivos
+      },
+      kpis: {
+        interesados,
+        notificados,
+        inscritos,
+        asistencia: asistenciaPromedio,
+        anuncios
+      },
+      insights: {
+        conversion
+      },
+      tendencias: {
+        inscripcionesMes,
+        interesadosMes
       }
     });
 
-    // Formateamos los datos para que el Frontend los lea fácil
-    const ultimasPendientes = ultimasPendientesRaw.map(ins => ({
-      id: ins.id_inscripcion,
-      nombre: `${ins.usuario.nombre} ${ins.usuario.apellido_paterno}`,
-      carrera: ins.usuario.carrera?.nombre_carrera || 'N/A',
-      servicio: ins.horario.tipo_actividad || 'General',
-      fecha: ins.fecha_inscripcion
-    }));
-
-    res.json({
-      inscripcionesPendientes,
-      usuariosRegistrados,
-      asistenciasHoy,
-      serviciosActivos,
-      ultimasPendientes // 👈 Lo agregamos a la respuesta
-    });
   } catch (error) {
     console.error("❌ Error obteniendo stats del dashboard:", error);
     res.status(500).json({ message: "Error al obtener estadísticas del dashboard" });
