@@ -240,7 +240,7 @@ exports.getDashboardStats = async (req, res) => {
 
     // ── KPIs ─────────────────────────────────────────────────────
     const interesados  = await prisma.listaEspera.count();
-    const notificados  = await prisma.listaEspera.count({ where: { notificado: true } });
+const notificados = await prisma.listaEspera.count({ where: { estado: 'notificado' } });
     const inscritos    = await prisma.inscripcion.count({ where: { estado: 'aprobado' } });
     const anuncios     = await prisma.anuncio.count({ where: { activo: true } });
 
