@@ -85,7 +85,7 @@ app.use('/api/anuncios', anuncioRoutes);
 // SOLO esto (sin volver a declarar express)
 app.use('/imagenes', express.static('public/imagenes'));
 
-const neuronaRoutes = require('./src/routes/neurona')
+const neuronaRoutes = require('./src/routes/neurona.routes')
 app.use('/api/neurona', neuronaRoutes)
 // ==========================================
 // Puerto y Encendido
