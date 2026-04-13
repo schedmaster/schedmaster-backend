@@ -9,5 +9,6 @@ router.post('/register', auth.register);
 router.post('/login', auth.login);
 router.post('/verify-2fa', auth.verify2FA);
 router.post('/resend-2fa', auth.resend2FA);
+router.get('/perfil/:id_usuario', auth.getPerfil);
 
 module.exports = router;

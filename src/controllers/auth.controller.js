@@ -7,6 +7,7 @@ const {
   verifyLogin2FAChallenge,
   resendLogin2FACode
 } = require('../services/twoFactorAuth.service');
+const { buildLoginResponse } = require('../services/authResponse.service');
 
 function esContrasenaValida(password) {
   if (typeof password !== 'string') return false;
@@ -358,6 +359,57 @@ exports.resend2FA = async (req, res) => {
     return res.status(400).json({ message: 'Reto 2FA invalido' });
   } catch (error) {
     console.error('Error reenviando 2FA:', error);
+    return res.status(500).json({ message: 'Error interno del servidor' });
+  }
+};
+
+exports.getPerfil = async (req, res) => {
+  try {
+    const { id_usuario } = req.params;
+
+    if (!id_usuario || Number.isNaN(Number(id_usuario))) {
+      return res.status(400).json({ message: 'id_usuario invalido' });
+    }
+
+    const user = await prisma.usuario.findUnique({
+      where: { id_usuario: Number(id_usuario) },
+      include: {
+        carrera: true,
+        division: true,
+        inscripciones: {
+          include: {
+            horario: {
+              include: {
+                periodo: true,
+                horarioDias: {
+                  include: { dia: true }
+                }
+              }
+            },
+            diasSeleccionados: {
+              include: { dia: true }
+            },
+            propuestas: {
+              include: {
+                dias: {
+                  include: {
+                    dia: true
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    return res.json(buildLoginResponse(user));
+  } catch (error) {
+    console.error('Error al obtener perfil:', error);
     return res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
