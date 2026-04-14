@@ -39,26 +39,35 @@ exports.getAsistenciasAdmin = async (req, res) => {
       }
     });
 
-    const data = inscripciones.map(ins => {
-      const registro = ins.asistencias[0];
-      let status = 'Pendiente';
-      if (registro) status = registro.asistio ? 'Presente' : 'Ausente';
+    // Día de la semana de la fecha seleccionada en español
+    const DIAS_ES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    const diaSemanaFecha = DIAS_ES[fechaFiltro.getDay()];
 
-      // Nombres de los días asignados al horario de esta inscripción
-      const diasHorario = ins.diasSeleccionados?.map(d => d.dia?.nombre).filter(Boolean) ?? [];
+    const data = inscripciones
+      .map(ins => {
+        const registro = ins.asistencias[0];
+        let status = 'Pendiente';
+        if (registro) status = registro.asistio ? 'Presente' : 'Ausente';
 
-      return {
-        id_usuario:     ins.id_usuario,
-        id_inscripcion: ins.id_inscripcion,
-        id_horario:     ins.id_horario,
-        usuario:        `${ins.usuario.nombre} ${ins.usuario.apellido_paterno}`,
-        correo:         ins.usuario.correo,
-        carrera:        ins.usuario.carrera?.nombre_carrera || 'N/A',
-        horario:        `${ins.horario.hora_inicio} - ${ins.horario.hora_fin}`,
-        estado:         status,
-        diasHorario,    // ← nuevo campo que consume el frontend
-      };
-    });
+        const diasHorario = ins.diasSeleccionados?.map(d => d.dia?.nombre).filter(Boolean) ?? [];
+
+        return {
+          id_usuario:     ins.id_usuario,
+          id_inscripcion: ins.id_inscripcion,
+          id_horario:     ins.id_horario,
+          usuario:        `${ins.usuario.nombre} ${ins.usuario.apellido_paterno}`,
+          correo:         ins.usuario.correo,
+          carrera:        ins.usuario.carrera?.nombre_carrera || 'N/A',
+          horario:        `${ins.horario.hora_inicio} - ${ins.horario.hora_fin}`,
+          estado:         status,
+          diasHorario,
+        };
+      })
+      // ── Solo mostrar inscripciones que apliquen al día seleccionado ──
+      .filter(ins => {
+        if (!ins.diasHorario || ins.diasHorario.length === 0) return true;
+        return ins.diasHorario.includes(diaSemanaFecha);
+      });
 
     const finalData = estado && estado !== 'Todos'
       ? data.filter(d => d.estado.toLowerCase() === estado.toLowerCase())
