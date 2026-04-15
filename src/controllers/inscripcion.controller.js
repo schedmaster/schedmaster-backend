@@ -5,7 +5,6 @@ const { evaluarUsuario } = require('../lib/neurona')
 // HELPER — verificar lugares disponibles
 // ==========================================
 const verificarLugares = async (id_horario, diasIds, client = prisma) => {
-
   const horario = await client.horario.findUnique({
     where: { id_horario: parseInt(id_horario) }
   })
@@ -13,30 +12,37 @@ const verificarLugares = async (id_horario, diasIds, client = prisma) => {
   if (!horario) throw new Error('Horario no encontrado')
 
   let minimoDisponible = Infinity
+  let diasLlenos = [] // 👈 NUEVO: Guardaremos los nombres de los días que ya no tienen lugar
 
   for (const id_dia of diasIds) {
+    // Buscamos el nombre del día para el mensaje de error
+    const diaData = await client.dia.findUnique({ where: { id_dia: parseInt(id_dia) } });
 
-    const ocupados = await client.inscripcion.count({
+    const ocupados = await client.inscripcionDia.count({
       where: {
-        id_horario: parseInt(id_horario),
-        estado: 'aprobado',
-        diasSeleccionados: {
-          some: { id_dia: parseInt(id_dia) }
+        id_dia: parseInt(id_dia),
+        inscripcion: {
+          id_horario: parseInt(id_horario),
+          estado: 'aprobado'
         }
       }
     })
 
-    const disponibles = horario.capacidad_maxima - ocupados  // ← corregido
+    const disponibles = horario.capacidad_maxima - ocupados 
+
+    if (disponibles <= 0 && diaData) {
+       // Si no hay disponibles, guardamos el nombre del día (ej. "Miércoles")
+       diasLlenos.push(diaData.nombre); 
+    }
 
     if (disponibles < minimoDisponible) minimoDisponible = disponibles
-
   }
 
   return {
     disponibles: minimoDisponible,
-    capacidad: horario.capacidad_maxima                      // ← corregido
+    capacidad: horario.capacidad_maxima,
+    diasLlenos // 👈 NUEVO: Regresamos qué días fallaron
   }
-
 }
 
 // ==========================================
@@ -44,94 +50,74 @@ const verificarLugares = async (id_horario, diasIds, client = prisma) => {
 // ==========================================
 exports.obtenerPendientes = async (req, res) => {
   try {
-
     const inscripcionesPendientes = await prisma.inscripcion.findMany({
       where: { estado: 'pendiente' },
       include: {
         usuario: {
-          include: {
-            asistencias: true
-          }
+          include: { asistencias: true }
         },
-        
         horario: true,
         diasSeleccionados: { include: { dia: true } }
       }
     })
 
     const datosFormateados = inscripcionesPendientes.map(insc => {
-  const totalAsistencias = insc.usuario.asistencias?.length || 0;
-  const asistidas = insc.usuario.asistencias?.filter(a => a.asistio).length || 0;
-  const faltas = totalAsistencias - asistidas;
+      const totalAsistencias = insc.usuario.asistencias?.length || 0;
+      const asistidas = insc.usuario.asistencias?.filter(a => a.asistio).length || 0;
+      const faltas = totalAsistencias - asistidas;
 
-  const score = totalAsistencias > 0 ? evaluarUsuario({ asistencias: asistidas, faltas }) : null;
-  const prioridadCalculada = score !== null
-    ? (score >= 0.8 ? 'alta' : score >= 0.5 ? 'media' : 'baja')
-    : 'normal';
+      const score = totalAsistencias > 0 ? evaluarUsuario({ asistencias: asistidas, faltas }) : null;
+      const prioridadCalculada = score !== null
+        ? (score >= 0.8 ? 'alta' : score >= 0.5 ? 'media' : 'baja')
+        : 'normal';
 
-  return {
-    id_inscripcion: insc.id_inscripcion,
-    usuario: insc.usuario,
-    prioridad: prioridadCalculada,
-    score: score !== null ? Number(score.toFixed(3)) : null,
-    asistencias: asistidas,
-    faltas,
-    estado: insc.estado,
-    horario: {
-      hora_inicio: insc.horario?.hora_inicio,
-      hora_fin: insc.horario?.hora_fin
-    },
-    diasSeleccionados: insc.diasSeleccionados
-  };
-});
+      return {
+        id_inscripcion: insc.id_inscripcion,
+        usuario: insc.usuario,
+        prioridad: prioridadCalculada,
+        score: score !== null ? Number(score.toFixed(3)) : null,
+        asistencias: asistidas,
+        faltas,
+        estado: insc.estado,
+        horario: {
+          hora_inicio: insc.horario?.hora_inicio,
+          hora_fin: insc.horario?.hora_fin
+        },
+        diasSeleccionados: insc.diasSeleccionados
+      };
+    });
 
-    // 🔥 GRAFICA CON DÍAS (sin romper nada)
-const horarios = await prisma.horario.findMany({
-  include: {
-    inscripciones: {
-      where: {
-        estado: 'aprobado'
-      },
+    const horarios = await prisma.horario.findMany({
       include: {
-        diasSeleccionados: {
+        inscripciones: {
+          where: { estado: 'aprobado' },
           include: {
-            dia: true
+            diasSeleccionados: { include: { dia: true } }
           }
-        }
-      }
-    },
-    horarioDias: {
-      include: {
-        dia: true
-      }
-    }
-  },
-  orderBy: { hora_inicio: 'asc' }
-})
+        },
+        horarioDias: { include: { dia: true } }
+      },
+      orderBy: { hora_inicio: 'asc' }
+    })
 
-const grafica = horarios.map(h => {
+    const grafica = horarios.map(h => {
+      const diasHorario = h.horarioDias.map(hd => hd.dia.nombre);
 
-  // 🔥 días del horario (ej: Lunes, Miércoles)
-  const diasHorario = h.horarioDias.map(hd => hd.dia.nombre);
+      return diasHorario.map(dia => {
+        const ocupados = h.inscripciones.filter(insc =>
+          insc.diasSeleccionados?.some(d => d.dia.nombre === dia)
+        ).length;
 
-  return diasHorario.map(dia => {
-
-    // 🔥 contar SOLO los que eligieron ese día
-    const ocupados = h.inscripciones.filter(insc =>
-      insc.diasSeleccionados?.some(d => d.dia.nombre === dia)
-    ).length;
-
-    return {
-      id_horario: h.id_horario,
-      hora: h.hora_inicio,
-      dia, // 🔥 ahora es un solo día
-      ocupados,
-      capacidad: h.capacidad_maxima,
-      disponibles: h.capacidad_maxima - ocupados
-    };
-  });
-
-}).flat(); // 🔥 IMPORTANTÍSIMO
+        return {
+          id_horario: h.id_horario,
+          hora: h.hora_inicio,
+          dia, 
+          ocupados,
+          capacidad: h.capacidad_maxima,
+          disponibles: h.capacidad_maxima - ocupados
+        };
+      });
+    }).flat(); 
 
     res.status(200).json({
       inscripciones: datosFormateados,
@@ -146,17 +132,37 @@ const grafica = horarios.map(h => {
 
 
 // ==========================================
-// 2. APROBAR
+// 2. APROBAR (Con validación de Cupo)
 // ==========================================
 exports.aceptarInscripcion = async (req, res) => {
   try {
-
     const { id_inscripcion } = req.body
 
     if (!id_inscripcion) {
       return res.status(400).json({ message: 'id_inscripcion requerido' })
     }
 
+    // 1. Buscamos qué pidió el alumno
+    const inscripcionPrevia = await prisma.inscripcion.findUnique({
+      where: { id_inscripcion: parseInt(id_inscripcion) },
+      include: { diasSeleccionados: true }
+    });
+
+    if (!inscripcionPrevia) return res.status(404).json({ message: 'Inscripción no encontrada' });
+
+    // 2. Usamos el helper para verificar si hay lugar en esos días exactos
+    const diasIds = inscripcionPrevia.diasSeleccionados.map(d => d.id_dia);
+    const validacion = await verificarLugares(inscripcionPrevia.id_horario, diasIds);
+
+    // 3. LA REGLA DE ARLET: Bloquear si hay días llenos
+    if (validacion.diasLlenos && validacion.diasLlenos.length > 0) {
+      return res.status(409).json({ 
+        error: "CUPO_LLENO",
+        message: `El día ${validacion.diasLlenos.join(" y ")} ya está lleno, la mejor opción es proponerle un horario nuevo.`
+      });
+    }
+
+    // 4. Si hay lugar, aprobamos normal
     const inscripcion = await prisma.inscripcion.update({
       where: { id_inscripcion: parseInt(id_inscripcion) },
       data: {
@@ -185,7 +191,6 @@ exports.aceptarInscripcion = async (req, res) => {
 // ==========================================
 exports.rechazarInscripcion = async (req, res) => {
   try {
-
     const { id_inscripcion } = req.body
 
     if (!id_inscripcion) {

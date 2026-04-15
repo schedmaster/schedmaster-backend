@@ -2,15 +2,32 @@ const crypto = require("crypto");
 const fs = require("fs");
 const prisma = require("../../prisma/client");
 
-
 exports.getAsistenciasAdmin = async (req, res) => {
   try {
-    const { fecha, id_horario, estado, id_carrera } = req.query;
+    // 1. AHORA SÍ RECIBIMOS EL id_periodo DEL FRONTEND
+    const { fecha, id_horario, estado, id_carrera, id_periodo } = req.query; 
+    
+    let periodoIdParaFiltrar;
 
-    let fechaFiltro = new Date();
+    // 2. LÓGICA DINÁMICA: Si seleccionaron uno en el menú, usamos ese. Si no, buscamos el activo.
+    if (id_periodo) {
+      periodoIdParaFiltrar = Number(id_periodo);
+    } else {
+      const periodoActivo = await prisma.periodo.findFirst({
+        where: { estado: 'activo' }
+      });
+
+      if (!periodoActivo) {
+        return res.status(404).json({ message: "No hay ninguna convocatoria activa." });
+      }
+      periodoIdParaFiltrar = periodoActivo.id_periodo;
+    }
+
+    // 3. CORRECCIÓN ZONA HORARIA
+    let fechaFiltro = new Date(); 
     if (fecha) {
-      const partes = fecha.split('-');
-      fechaFiltro = new Date(partes[0], partes[1] - 1, partes[2]);
+      const partes = fecha.split('-'); 
+      fechaFiltro = new Date(partes[0], partes[1] - 1, partes[2]); 
     }
 
     const inicioDia = new Date(fechaFiltro);
@@ -18,9 +35,11 @@ exports.getAsistenciasAdmin = async (req, res) => {
     const finDia = new Date(fechaFiltro);
     finDia.setHours(23, 59, 59, 999);
 
+    // 4. CONSULTA A PRISMA CON LA VARIABLE DINÁMICA
     const inscripciones = await prisma.inscripcion.findMany({
       where: {
         estado: 'aprobado',
+        id_periodo: periodoIdParaFiltrar, // <-- AQUÍ SE APLICA EL FILTRO REAL
         id_horario: id_horario && id_horario !== 'Todos' ? Number(id_horario) : undefined,
         usuario: {
           id_carrera: id_carrera && id_carrera !== 'Todas' ? Number(id_carrera) : undefined,
@@ -80,20 +99,26 @@ exports.getAsistenciasAdmin = async (req, res) => {
   }
 };
 
-
 exports.registrarAsistencia = async (req, res) => {
   try {
     const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por, fecha_registro } = req.body;
 
-    let fechaAfectar = new Date();
-    if (fecha_registro) {
-      const partes = fecha_registro.split('-');
-      fechaAfectar = new Date(partes[0], partes[1] - 1, partes[2]);
+    const fechaActual = new Date();
+    const anio = fechaActual.getFullYear();
+    const mes = String(fechaActual.getMonth() + 1).padStart(2, '0');
+    const dia = String(fechaActual.getDate()).padStart(2, '0');
+    const fechaServidorString = `${anio}-${mes}-${dia}`;
+
+    if (fecha_registro && fecha_registro !== fechaServidorString) {
+      return res.status(400).json({ 
+        message: "No se puede registrar o modificar asistencia para días anteriores o posteriores al día de hoy." 
+      });
     }
 
-    const inicioDia = new Date(fechaAfectar);
+    const inicioDia = new Date(fechaActual);
     inicioDia.setHours(0, 0, 0, 0);
-    const finDia = new Date(fechaAfectar);
+    
+    const finDia = new Date(fechaActual);
     finDia.setHours(23, 59, 59, 999);
 
     const asistenciaExistente = await prisma.asistencia.findFirst({
@@ -104,19 +129,20 @@ exports.registrarAsistencia = async (req, res) => {
     });
 
     let resultado;
+    
     if (asistenciaExistente) {
       resultado = await prisma.asistencia.update({
         where: { id_asistencia: asistenciaExistente.id_asistencia },
-        data: { asistio: Boolean(asistio), fecha: new Date() }
+        data: { asistio: Boolean(asistio), fecha: new Date() } 
       });
     } else {
       resultado = await prisma.asistencia.create({
         data: {
-          id_usuario:        Number(id_usuario),
-          id_inscripcion:    Number(id_inscripcion),
-          id_horario:        Number(id_horario),
-          fecha:             new Date(),
-          asistio:           Boolean(asistio),
+          id_usuario: Number(id_usuario),
+          id_inscripcion: Number(id_inscripcion),
+          id_horario: Number(id_horario),
+          fecha: new Date(), 
+          asistio: Boolean(asistio),
           id_registrado_por: Number(id_registrado_por || 1)
         }
       });
@@ -128,56 +154,6 @@ exports.registrarAsistencia = async (req, res) => {
     res.status(500).json({ message: "Error al registrar" });
   }
 };
-
-
-// ── Auto-marcar ausentes cuando ya pasó su hora de fin ────────────
-// El frontend llama a este endpoint cada minuto, o puedes programarlo
-// con un cron en el servidor.
-exports.autoMarcarAusentes = async (req, res) => {
-  try {
-    const ahora = new Date();
-    const hhmm  = `${String(ahora.getHours()).padStart(2,'0')}:${String(ahora.getMinutes()).padStart(2,'0')}`;
-
-    const inicioDia = new Date(ahora); inicioDia.setHours(0, 0, 0, 0);
-    const finDia    = new Date(ahora); finDia.setHours(23, 59, 59, 999);
-
-    // Solo inscripciones activas cuyo horario ya terminó
-    const inscripciones = await prisma.inscripcion.findMany({
-      where: { estado: 'aprobado' },
-      include: {
-        horario: true,
-        asistencias: {
-          where: { fecha: { gte: inicioDia, lte: finDia } }
-        }
-      }
-    });
-
-    let marcados = 0;
-    for (const ins of inscripciones) {
-      const horaFin = ins.horario?.hora_fin?.substring(0, 5);
-      if (!horaFin || hhmm <= horaFin) continue;   // el horario aún no termina
-      if (ins.asistencias.length > 0) continue;    // ya tiene registro hoy
-
-      await prisma.asistencia.create({
-        data: {
-          id_usuario:        ins.id_usuario,
-          id_inscripcion:    ins.id_inscripcion,
-          id_horario:        ins.id_horario,
-          fecha:             new Date(),
-          asistio:           false,
-          id_registrado_por: 1
-        }
-      });
-      marcados++;
-    }
-
-    res.json({ message: `${marcados} ausencias registradas automáticamente` });
-  } catch (error) {
-    console.error("❌ Error en autoMarcarAusentes:", error);
-    res.status(500).json({ message: "Error al marcar ausentes automáticamente" });
-  }
-};
-
 
 exports.uploadAndHash = async (req, res) => {
   try {
@@ -211,7 +187,6 @@ exports.uploadAndHash = async (req, res) => {
   }
 };
 
-
 exports.obtenerHistorico = async (req, res) => {
   try {
     const { q } = req.query;
@@ -234,7 +209,6 @@ exports.obtenerHistorico = async (req, res) => {
   }
 };
 
-
 exports.getReporteEstadisticas = async (req, res) => {
   try {
     const inscripciones = await prisma.inscripcion.findMany({
@@ -247,18 +221,21 @@ exports.getReporteEstadisticas = async (req, res) => {
     });
 
     const reporte = inscripciones.map((ins, index) => {
-      const totalAsistencias    = ins.asistencias.length;
+      const totalAsistencias = ins.asistencias.length;
       const asistenciasPresente = ins.asistencias.filter(a => a.asistio).length;
-      const porcentaje = totalAsistencias > 0
-        ? Math.round((asistenciasPresente / totalAsistencias) * 100) : 0;
+      
+      const porcentaje = totalAsistencias > 0 
+        ? Math.round((asistenciasPresente / totalAsistencias) * 100) 
+        : 0;
+
       const matriculaExtraida = ins.usuario.correo ? ins.usuario.correo.split('@')[0] : 'N/A';
 
       return {
-        id:         ins.id_inscripcion || index,
-        matricula:  matriculaExtraida,
-        nombre:     `${ins.usuario.nombre} ${ins.usuario.apellido_paterno} ${ins.usuario.apellido_materno}`.trim(),
-        carrera:    ins.usuario.carrera?.nombre_carrera || 'N/A',
-        servicio:   ins.horario.tipo_actividad || 'General',
+        id: ins.id_inscripcion || index, 
+        matricula: matriculaExtraida,
+        nombre: `${ins.usuario.nombre} ${ins.usuario.apellido_paterno} ${ins.usuario.apellido_materno}`.trim(),
+        carrera: ins.usuario.carrera?.nombre_carrera || 'N/A',
+        servicio: ins.horario.tipo_actividad || 'General',
         asistencia: `${porcentaje}%`,
         estado:     ins.estado === 'aprobado' ? 'Activo' : 'Inactivo'
       };
@@ -270,7 +247,6 @@ exports.getReporteEstadisticas = async (req, res) => {
     res.status(500).json({ message: "Error al generar el reporte" });
   }
 };
-
 
 exports.getDashboardStats = async (req, res) => {
   try {
@@ -289,35 +265,30 @@ exports.getDashboardStats = async (req, res) => {
     const inscritos   = await prisma.inscripcion.count({ where: { estado: 'aprobado' } });
     const anuncios    = await prisma.anuncio.count({ where: { activo: true } });
 
-    const todasAsistencias    = await prisma.asistencia.count();
-    const asistenciasPresente = await prisma.asistencia.count({ where: { asistio: true } });
-    const asistenciaPromedio  = todasAsistencias > 0
-      ? Math.round((asistenciasPresente / todasAsistencias) * 100) : 0;
+    const ultimasPendientesRaw = await prisma.inscripcion.findMany({
+      where: { estado: 'pendiente' },
+      orderBy: { fecha_inscripcion: 'desc' },
+      take: 5, 
+      include: {
+        usuario: { include: { carrera: true } },
+        horario: true
+      }
+    });
 
-    const conversion = interesados > 0
-      ? ((inscritos / interesados) * 100).toFixed(1) : "0.0";
-
-    const ahora = new Date();
-    const inscripcionesMes = Array(12).fill(0);
-    const interesadosMes   = Array(12).fill(0);
-
-    for (let i = 0; i < 12; i++) {
-      const inicio = new Date(ahora.getFullYear(), ahora.getMonth() - 11 + i, 1);
-      const fin    = new Date(ahora.getFullYear(), ahora.getMonth() - 11 + i + 1, 0, 23, 59, 59, 999);
-
-      inscripcionesMes[i] = await prisma.inscripcion.count({
-        where: { estado: 'aprobado', fecha_inscripcion: { gte: inicio, lte: fin } }
-      });
-      interesadosMes[i] = await prisma.listaEspera.count({
-        where: { fecha_registro: { gte: inicio, lte: fin } }
-      });
-    }
+    const ultimasPendientes = ultimasPendientesRaw.map(ins => ({
+      id: ins.id_inscripcion,
+      nombre: `${ins.usuario.nombre} ${ins.usuario.apellido_paterno}`,
+      carrera: ins.usuario.carrera?.nombre_carrera || 'N/A',
+      servicio: ins.horario.tipo_actividad || 'General',
+      fecha: ins.fecha_inscripcion
+    }));
 
     res.json({
-      basicos:    { inscripcionesPendientes, usuariosRegistrados, asistenciasHoy, serviciosActivos },
-      kpis:       { interesados, notificados, inscritos, asistencia: asistenciaPromedio, anuncios },
-      insights:   { conversion },
-      tendencias: { inscripcionesMes, interesadosMes }
+      inscripcionesPendientes,
+      usuariosRegistrados,
+      asistenciasHoy,
+      serviciosActivos,
+      ultimasPendientes
     });
   } catch (error) {
     console.error("❌ Error obteniendo stats del dashboard:", error);
