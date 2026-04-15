@@ -105,7 +105,7 @@ const enviarPropuesta = async (req, res) => {
       data: { estado: 'propuesta_enviada' }
     })
 
-    // 🚀 BUG #1 SOLUCIONADO: Apuntando a Vercel en lugar de Localhost
+    // 🚀 BUG #1 SOLUCIONADO: Usando /pending para evitar logins innecesarios
     const FRONTEND_URL = process.env.FRONTEND_URL || 'https://schedmaster-frontend.vercel.app';
 
     const html = `
@@ -117,14 +117,14 @@ const enviarPropuesta = async (req, res) => {
           <p style="margin: 5px 0;"><strong>Horario:</strong> ${horario.hora_inicio.substring(0,5)} - ${horario.hora_fin.substring(0,5)}</p>
           <p style="margin: 5px 0;"><strong>Días:</strong> ${diasTexto}</p>
         </div>
-        <p>Para aceptar o rechazar esta propuesta, por favor inicia sesión en la plataforma:</p>
+        <p>Para aceptar o rechazar esta propuesta, por favor revisa los detalles en la plataforma:</p>
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${FRONTEND_URL}/login"
+          <a href="${FRONTEND_URL}/pending"
              style="background:#2563eb; color:white; padding:14px 25px; text-decoration:none; border-radius:5px; display:inline-block; font-weight: bold;">
-            Entrar a SchedMaster
+            Ver mi propuesta
           </a>
         </div>
-        <p style="font-size: 12px; color: #666;">Si no puedes hacer clic en el botón, copia y pega este enlace en tu navegador: <br> ${FRONTEND_URL}/login</p>
+        <p style="font-size: 12px; color: #666;">Si no puedes hacer clic en el botón, copia y pega este enlace en tu navegador: <br> ${FRONTEND_URL}/pending</p>
       </div>
     `
 
