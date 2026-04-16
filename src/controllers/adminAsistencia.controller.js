@@ -85,10 +85,10 @@ exports.registrarAsistencia = async (req, res) => {
     const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por, fecha_registro } = req.body;
     const fechaActual = new Date();
 
-    // ✅ Se elimina la validación de fecha — el frontend ya controla que sea hoy.
-    // Calcular inicio y fin del día local usando la fecha que manda el cliente.
-    let inicioDia, finDia;
+    // ✅ Se elimina la validación de fecha contra el servidor (problema de zona horaria UTC vs México).
+    // La validación de "solo hoy" y "dentro del horario" ya la hace el frontend antes de llamar aquí.
 
+    let inicioDia, finDia;
     if (fecha_registro) {
       const partes = fecha_registro.split('-');
       const fechaLocal = new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]));
