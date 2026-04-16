@@ -84,7 +84,13 @@ exports.registrarAsistencia = async (req, res) => {
   try {
     const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por, fecha_registro } = req.body;
     const fechaActual = new Date();
-    const fechaServidorString = fechaActual.toISOString().split('T')[0];
+
+    // ✅ FIX: Usar fecha local del servidor en lugar de UTC (evita desfase en México UTC-6)
+    const fechaServidorString = [
+      fechaActual.getFullYear(),
+      String(fechaActual.getMonth() + 1).padStart(2, '0'),
+      String(fechaActual.getDate()).padStart(2, '0')
+    ].join('-');
 
     if (fecha_registro && fecha_registro !== fechaServidorString) {
       return res.status(400).json({ message: "Solo se puede registrar asistencia el día de hoy." });
@@ -141,7 +147,7 @@ exports.obtenerHistorico = async (req, res) => {
 };
 
 // ==========================================
-// 4. REPORTES Y ESTADÍSTICAS (Dash Fix)
+// 4. REPORTES Y ESTADÍSTICAS
 // ==========================================
 exports.getReporteEstadisticas = async (req, res) => {
   try {
@@ -168,7 +174,6 @@ exports.getReporteEstadisticas = async (req, res) => {
   }
 };
 
-// 🚀 VERSIÓN CORREGIDA PARA EL DASHBOARD DE VERCEL
 exports.getDashboardStats = async (req, res) => {
   try {
     const ahora = new Date();
@@ -185,7 +190,6 @@ exports.getDashboardStats = async (req, res) => {
       prisma.anuncio?.count({ where: { activo: true } }) || 0
     ]);
 
-    // Cálculo de tendencias para la gráfica
     const inscripcionesMes = Array(12).fill(0);
     const interesadosMes = Array(12).fill(0);
     const unAñoAtras = new Date(ahora.getFullYear() - 1, ahora.getMonth() + 1, 1);
@@ -202,7 +206,6 @@ exports.getDashboardStats = async (req, res) => {
       inscripcionesMes[i] = enMes.filter(h => h.estado === 'aprobado').length;
     }
 
-    // 📦 Estructura que SÍ lee tu Frontend
     res.json({
       basicos: { inscripcionesPendientes: pendientes, usuariosRegistrados: registrados, asistenciasHoy: asistencias, serviciosActivos: activos },
       kpis: { interesados: historial.length, notificados, inscritos: inscritosTotal, asistencia: 85, anuncios },
