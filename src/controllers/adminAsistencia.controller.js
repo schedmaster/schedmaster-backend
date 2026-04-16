@@ -85,27 +85,39 @@ exports.registrarAsistencia = async (req, res) => {
     const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por, fecha_registro } = req.body;
     const fechaActual = new Date();
 
-    // ✅ FIX: Usar fecha local del servidor en lugar de UTC (evita desfase en México UTC-6)
-    const fechaServidorString = [
-      fechaActual.getFullYear(),
-      String(fechaActual.getMonth() + 1).padStart(2, '0'),
-      String(fechaActual.getDate()).padStart(2, '0')
-    ].join('-');
+    // ✅ Se elimina la validación de fecha — el frontend ya controla que sea hoy.
+    // Calcular inicio y fin del día local usando la fecha que manda el cliente.
+    let inicioDia, finDia;
 
-    if (fecha_registro && fecha_registro !== fechaServidorString) {
-      return res.status(400).json({ message: "Solo se puede registrar asistencia el día de hoy." });
+    if (fecha_registro) {
+      const partes = fecha_registro.split('-');
+      const fechaLocal = new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]));
+      inicioDia = new Date(fechaLocal); inicioDia.setHours(0, 0, 0, 0);
+      finDia    = new Date(fechaLocal); finDia.setHours(23, 59, 59, 999);
+    } else {
+      inicioDia = new Date(fechaActual); inicioDia.setHours(0, 0, 0, 0);
+      finDia    = new Date(fechaActual); finDia.setHours(23, 59, 59, 999);
     }
-
-    const inicioDia = new Date(fechaActual); inicioDia.setHours(0, 0, 0, 0);
-    const finDia = new Date(fechaActual); finDia.setHours(23, 59, 59, 999);
 
     const asistenciaExistente = await prisma.asistencia.findFirst({
       where: { id_usuario: Number(id_usuario), fecha: { gte: inicioDia, lte: finDia } }
     });
 
-    let resultado = asistenciaExistente 
-      ? await prisma.asistencia.update({ where: { id_asistencia: asistenciaExistente.id_asistencia }, data: { asistio: Boolean(asistio), fecha: new Date() } })
-      : await prisma.asistencia.create({ data: { id_usuario: Number(id_usuario), id_inscripcion: Number(id_inscripcion), id_horario: Number(id_horario), fecha: new Date(), asistio: Boolean(asistio), id_registrado_por: Number(id_registrado_por || 1) } });
+    const resultado = asistenciaExistente
+      ? await prisma.asistencia.update({
+          where: { id_asistencia: asistenciaExistente.id_asistencia },
+          data: { asistio: Boolean(asistio), fecha: new Date() }
+        })
+      : await prisma.asistencia.create({
+          data: {
+            id_usuario: Number(id_usuario),
+            id_inscripcion: Number(id_inscripcion),
+            id_horario: Number(id_horario),
+            fecha: new Date(),
+            asistio: Boolean(asistio),
+            id_registrado_por: Number(id_registrado_por || 1)
+          }
+        });
 
     res.json({ message: "Asistencia actualizada", asistencia: resultado });
   } catch (error) {
