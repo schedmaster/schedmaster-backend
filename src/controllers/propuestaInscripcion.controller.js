@@ -5,7 +5,6 @@ const prisma = require('../../prisma/client')
 // HELPER — verificar lugares disponibles
 // ==========================================
 const verificarLugares = async (id_horario, diasIds, client = prisma) => {
-
   const horario = await client.horario.findUnique({
     where: { id_horario: parseInt(id_horario) }
   })
@@ -15,7 +14,6 @@ const verificarLugares = async (id_horario, diasIds, client = prisma) => {
   let minimoDisponible = Infinity
 
   for (const id_dia of diasIds) {
-
     const ocupados = await client.inscripcion.count({
       where: {
         id_horario: parseInt(id_horario),
@@ -26,24 +24,21 @@ const verificarLugares = async (id_horario, diasIds, client = prisma) => {
       }
     })
 
-    const disponibles = horario.capacidad_maxima - ocupados  // ← corregido
-
+    const disponibles = horario.capacidad_maxima - ocupados
     if (disponibles < minimoDisponible) minimoDisponible = disponibles
-
   }
 
   return {
     disponibles: minimoDisponible,
-    capacidad: horario.capacidad_maxima                      // ← corregido
+    capacidad: horario.capacidad_maxima
   }
-
 }
+
 // ==========================================
-// 1. ENVIAR PROPUESTA
+// 1. ENVIAR PROPUESTA (Link a /pending)
 // ==========================================
 const enviarPropuesta = async (req, res) => {
   try {
-
     const { correo, horarioId, dias } = req.body
 
     if (!correo || !horarioId || !dias || dias.length === 0) {
@@ -63,7 +58,6 @@ const enviarPropuesta = async (req, res) => {
     })
     if (!horario) return res.status(404).json({ message: 'Horario no encontrado' })
 
-    // ✅ Verificar capacidad antes de enviar
     const { disponibles } = await verificarLugares(horarioId, dias)
 
     if (disponibles <= 0) {
@@ -104,34 +98,35 @@ const enviarPropuesta = async (req, res) => {
       data: { estado: 'propuesta_enviada' }
     })
 
+    const FRONTEND_URL = process.env.FRONTEND_URL || 'https://schedmaster-frontend.vercel.app';
+
     const html = `
-      <div style="font-family: Arial; max-width:600px; margin:auto; border:1px solid #eee; padding:20px; border-radius:10px;">
+      <div style="font-family: Arial, sans-serif; max-width:600px; margin:auto; border:1px solid #eee; padding:20px; border-radius:10px; color: #333;">
         <h2 style="color:#2563eb;">Propuesta de Horario - SchedMaster UTEQ</h2>
-        <p>Hola <strong>${usuario.nombre}</strong>, hemos revisado tu solicitud.</p>
-        <p>Te proponemos el siguiente horario:</p>
-        <div style="background:#f3f4f6; padding:15px; border-radius:8px; margin:20px 0;">
-          <p><strong>Horario:</strong> ${horario.hora_inicio} - ${horario.hora_fin}</p>
-          <p><strong>Días:</strong> ${diasTexto}</p>
+        <p>Hola <strong>${usuario.nombre}</strong>,</p>
+        <p>Hemos revisado tu solicitud y te proponemos un nuevo horario:</p>
+        <div style="background:#f3f4f6; padding:15px; border-radius:8px; margin:20px 0; border-left: 5px solid #2563eb;">
+          <p style="margin: 5px 0;"><strong>Horario:</strong> ${horario.hora_inicio.substring(0,5)} - ${horario.hora_fin.substring(0,5)}</p>
+          <p style="margin: 5px 0;"><strong>Días:</strong> ${diasTexto}</p>
         </div>
-        <p>Para confirmar, inicia sesión en la plataforma:</p>
-        <a href="${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/login"
-           style="background:#2563eb; color:white; padding:12px 20px; text-decoration:none; border-radius:5px; display:inline-block;">
-          Entrar a SchedMaster
-        </a>
+        <p>Haz clic en el botón para aceptar o rechazar:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${FRONTEND_URL}/pending"
+             style="background:#2563eb; color:white; padding:14px 25px; text-decoration:none; border-radius:5px; display:inline-block; font-weight: bold;">
+            Ver mi propuesta
+          </a>
+        </div>
       </div>
     `
 
     await sendMail({
-  from: process.env.MAIL_FROM || "SchedMaster <onboarding@resend.dev>",
-  to: correo,
-  subject: 'Propuesta de horario para tu inscripción',
-  html
-})
-
-    res.json({
-      message: 'Propuesta enviada correctamente',
-      disponibles: disponibles - 1
+      from: process.env.MAIL_FROM || "SchedMaster <onboarding@resend.dev>",
+      to: correo,
+      subject: 'Propuesta de horario para tu inscripción',
+      html
     })
+
+    res.json({ message: 'Propuesta enviada correctamente', disponibles: disponibles - 1 })
 
   } catch (error) {
     console.error('❌ Error en enviarPropuesta:', error)
@@ -144,17 +139,13 @@ const enviarPropuesta = async (req, res) => {
 // ==========================================
 const obtenerPropuestaUsuario = async (req, res) => {
   try {
-
     const { id_usuario } = req.params
-
     const propuesta = await prisma.propuesta.findFirst({
       where: { id_usuario: parseInt(id_usuario), estado: 'pendiente' },
       include: { horario: true, dias: { include: { dia: true } } },
       orderBy: { id_propuesta: 'desc' }
     })
-
     res.json(propuesta || null)
-
   } catch (error) {
     console.error('❌ Error en obtenerPropuestaUsuario:', error)
     res.status(500).json({ message: 'Error obteniendo propuesta' })
@@ -166,11 +157,8 @@ const obtenerPropuestaUsuario = async (req, res) => {
 // ==========================================
 const aceptarPropuesta = async (req, res) => {
   try {
-
     const { id_propuesta } = req.body
-
     await prisma.$transaction(async (tx) => {
-
       const propuesta = await tx.propuesta.findUnique({
         where: { id_propuesta: parseInt(id_propuesta) },
         include: { dias: true }
@@ -178,12 +166,11 @@ const aceptarPropuesta = async (req, res) => {
 
       if (!propuesta) throw new Error('Propuesta no encontrada')
 
-      // ✅ Verificar capacidad dentro de la transacción con tx
       const diasIds = propuesta.dias.map(d => d.id_dia)
       const { disponibles } = await verificarLugares(propuesta.id_horario, diasIds, tx)
 
       if (disponibles <= 0) {
-        const err = new Error('Los lugares en este horario han sido cubiertos')
+        const err = new Error('Los lugares han sido cubiertos')
         err.code = 'SIN_LUGARES'
         throw err
       }
@@ -206,61 +193,46 @@ const aceptarPropuesta = async (req, res) => {
         where: { id_usuario: propuesta.id_usuario },
         data: { activo: true }
       })
-
     })
-
     res.json({ message: 'Inscripción finalizada con éxito' })
-
   } catch (error) {
-
     if (error.code === 'SIN_LUGARES') {
-      return res.status(409).json({
-        message: 'Los lugares en este horario han sido cubiertos',
-        disponibles: 0
-      })
+      return res.status(409).json({ message: 'Sin lugares disponibles', disponibles: 0 })
     }
-
-    console.error('❌ Error en aceptarPropuesta:', error)
     res.status(500).json({ message: 'Error al aceptar propuesta' })
-
   }
 }
+
+// ==========================================
+// 4. RECHAZAR Y BORRAR USUARIO 🧨
+// ==========================================
 const rechazarPropuesta = async (req, res) => {
   try {
     const { id_propuesta } = req.body
-
-    if (!id_propuesta) {
-      return res.status(400).json({ message: 'id_propuesta requerido' })
-    }
+    if (!id_propuesta) return res.status(400).json({ message: 'id_propuesta requerido' })
 
     await prisma.$transaction(async (tx) => {
-
       const propuesta = await tx.propuesta.findUnique({
         where: { id_propuesta: parseInt(id_propuesta) }
       })
-
       if (!propuesta) throw new Error('Propuesta no encontrada')
 
-      await tx.propuesta.update({
-        where: { id_propuesta: propuesta.id_propuesta },
-        data: { estado: 'rechazada', fecha_respuesta: new Date() }
-      })
+      const idUsuario = propuesta.id_usuario
+      const idInscripcion = propuesta.id_inscripcion
 
-      await tx.inscripcion.update({
-        where: { id_inscripcion: propuesta.id_inscripcion },
-        data: {
-          estado: 'rechazado',
-          fecha_decision: new Date()
-        }
-      })
-
+      // Borrado en cascada manual para evitar errores de FK
+      await tx.propuestaDia.deleteMany({ where: { id_propuesta: propuesta.id_propuesta } })
+      await tx.propuesta.delete({ where: { id_propuesta: propuesta.id_propuesta } })
+      await tx.inscripcionDia.deleteMany({ where: { id_inscripcion: idInscripcion } })
+      await tx.inscripcion.delete({ where: { id_inscripcion: idInscripcion } })
+      await tx.usuario.delete({ where: { id_usuario: idUsuario } })
     })
 
-    res.json({ message: 'Propuesta rechazada correctamente' })
-
+    res.json({ message: 'Propuesta rechazada y usuario borrado correctamente' })
   } catch (error) {
     console.error('❌ Error en rechazarPropuesta:', error)
-    res.status(500).json({ message: 'Error al rechazar propuesta' })
+    res.status(500).json({ message: 'Error al procesar el rechazo' })
   }
 }
-module.exports = { enviarPropuesta, obtenerPropuestaUsuario, aceptarPropuesta , rechazarPropuesta}
+
+module.exports = { enviarPropuesta, obtenerPropuestaUsuario, aceptarPropuesta, rechazarPropuesta }

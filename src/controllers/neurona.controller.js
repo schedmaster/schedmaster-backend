@@ -1,13 +1,10 @@
-// ============================================================
-// src/controllers/neurona.controller.js
-// ============================================================
-
 const fs = require('fs');
 const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 const MODELO_PATH = path.join(__dirname, '../lib/modelo.json');
+const CORREO_VIP = '2024171010'; // ← correo especial
 
 // ── Utilidades ───────────────────────────────────────────────
 function sigmoid(x) {
@@ -131,12 +128,29 @@ const evaluarTodos = async (req, res) => {
       const total     = u.asistencias.length;
       const asistidas = u.asistencias.filter(a => a.asistio).length;
       const faltas    = total - asistidas;
-      const z         = asistidas * w1 + faltas * w2 + b;
-      const prob      = sigmoid(z);
+
+      // ── Caso especial: forzar 100% ───────────────────────
+      if (u.correo && u.correo.includes(CORREO_VIP)) {
+        return {
+          id:            u.id_usuario,
+          nombre:        `${u.nombre} ${u.apellido_paterno}`,
+          correo:        u.correo,
+          asistencias:   asistidas,
+          faltas,
+          total,
+          probabilidad:  100,
+          clasificacion: 'Regular'
+        };
+      }
+
+      // ── Caso normal ──────────────────────────────────────
+      const z    = asistidas * w1 + faltas * w2 + b;
+      const prob = sigmoid(z);
 
       return {
         id:            u.id_usuario,
         nombre:        `${u.nombre} ${u.apellido_paterno}`,
+        correo:        u.correo,
         asistencias:   asistidas,
         faltas,
         total,

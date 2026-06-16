@@ -44,6 +44,7 @@ async function createLogin2FAChallenge(user) {
     }
   });
 
+  // Envío real del código por correo
   await sendLogin2FACodeEmail({
     to: user.correo,
     name: user.nombre,
@@ -108,6 +109,7 @@ async function resendLogin2FACode(challengeId) {
     }
   });
 
+  // Envío real del nuevo código por correo
   await sendLogin2FACodeEmail({
     to: challenge.usuario.correo,
     name: challenge.usuario.nombre,
