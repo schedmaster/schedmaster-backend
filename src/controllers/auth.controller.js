@@ -2,12 +2,49 @@ const prisma = require('../../prisma/client');
 const bcrypt = require('bcrypt');
 const { generateRSAKeyPair, decryptAESKeyWithRSA, decryptWithAES } = require('../lib/cryptoHelper');
 const { saveKey, consumeKey } = require('../lib/keyStore');
+const { buildLoginResponse } = require('../services/authResponse.service');
 const {
   createLogin2FAChallenge,
   verifyLogin2FAChallenge,
   resendLogin2FACode
 } = require('../services/twoFactorAuth.service');
 const { buildLoginResponse } = require('../services/authResponse.service');
+
+const DISABLE_LOGIN_2FA = ['1', 'true', 'yes'].includes(String(process.env.DISABLE_LOGIN_2FA || '').toLowerCase());
+
+async function getLoginResponseForUser(userId) {
+  const user = await prisma.usuario.findUnique({
+    where: { id_usuario: userId },
+    include: {
+      carrera: true,
+      division: true,
+      inscripciones: {
+        include: {
+          horario: {
+            include: {
+              periodo: true
+            }
+          },
+          propuestas: {
+            include: {
+              dias: {
+                include: {
+                  dia: true
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  return buildLoginResponse(user);
+}
 
 function esContrasenaValida(password) {
   if (typeof password !== 'string') return false;
@@ -259,6 +296,16 @@ exports.login = async (req, res) => {
     const match = await bcrypt.compare(password, user.contrasena);
     if (!match) {
       return res.status(401).json({ message: 'Contraseña incorrecta' });
+    }
+
+    if (DISABLE_LOGIN_2FA) {
+      const authResponse = await getLoginResponseForUser(user.id_usuario);
+
+      if (!authResponse) {
+        return res.status(404).json({ message: 'Usuario no encontrado' });
+      }
+
+      return res.json(authResponse);
     }
 
     const challenge = await createLogin2FAChallenge(user);

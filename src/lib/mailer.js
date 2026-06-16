@@ -30,6 +30,11 @@ async function sendMail({ from, to, subject, text, html }) {
 }
 
 async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
+  if (DISABLE_MAILER) {
+    console.log(`⚠️ Correo 2FA omitido para ${to}`);
+    return;
+  }
+
   const appName = process.env.APP_NAME || "SchedMaster";
   const safeName = name || "usuario";
   const safeCode = String(code || '').trim();
@@ -83,6 +88,11 @@ async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
 
 async function sendConvocatoriaActivaEmail({ to, periodo }) {
   try {
+    if (DISABLE_MAILER) {
+      console.log(`⚠️ Correo de convocatoria omitido para ${to}`);
+      return;
+    }
+
     const appName = process.env.APP_NAME || "SchedMaster";
 
     const html = `
