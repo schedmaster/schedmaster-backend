@@ -92,10 +92,15 @@ app.use('/api/neurona', neuronaRoutes)
 // Puerto y Encendido
 // ==========================================
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`
+
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`
   🚀 SchedMaster Backend listo!
   🌍 URL: http://localhost:${PORT}
   🛠️  CORS habilitado para puerto 3000
   `);
-});
+  });
+}
+
+module.exports = app;
