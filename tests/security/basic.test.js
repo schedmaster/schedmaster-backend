@@ -1,5 +1,6 @@
 const request = require('supertest');
 const app = require('../../app');
+const prisma = require('../../src/prismaClient');
 
 describe('Security smoke tests', () => {
   test('La aplicación debe exportar el objeto app', () => {
@@ -17,4 +18,12 @@ describe('Security smoke tests', () => {
     const acaOrigin = res.headers['access-control-allow-origin'];
     expect(acaOrigin === origin || typeof acaOrigin === 'string').toBeTruthy();
   });
+});
+
+afterAll(async () => {
+  try {
+    await prisma.$disconnect();
+  } catch (e) {
+    // ignore
+  }
 });
