@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('../../server');
+const app = require('../../app');
 
 describe('Security smoke tests', () => {
   test('La aplicación debe exportar el objeto app', () => {
