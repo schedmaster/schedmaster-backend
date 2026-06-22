@@ -5,7 +5,11 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:security": "jest tests/security"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -38,5 +42,13 @@
   "devDependencies": {
     "nodemon": "^3.1.11",
     "prisma": "^5.22.0"
+  }
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js",
+      "**/tests/**/*.test.cjs",
+      "**/tests/**/*.spec.js"
+    ]
   }
 }
