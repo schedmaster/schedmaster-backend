@@ -54,13 +54,17 @@ function consumeKey(keyId) {
  * Limpieza periódica de entradas expiradas para evitar acumulación en memoria.
  * Se ejecuta cada minuto de forma automática.
  */
-setInterval(() => {
-  const now = Date.now();
-  for (const [keyId, entry] of store.entries()) {
-    if (now > entry.expiresAt) {
-      store.delete(keyId);
+// Limpieza periódica de entradas expiradas para evitar acumulación en memoria.
+// No arrancamos el timer en entorno de test para que Jest pueda terminar.
+if (process.env.NODE_ENV !== 'test') {
+  setInterval(() => {
+    const now = Date.now();
+    for (const [keyId, entry] of store.entries()) {
+      if (now > entry.expiresAt) {
+        store.delete(keyId);
+      }
     }
-  }
-}, 60 * 1000);
+  }, 60 * 1000);
+}
 
 module.exports = { saveKey, consumeKey };
