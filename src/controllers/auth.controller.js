@@ -3,12 +3,12 @@ const bcrypt = require('bcrypt');
 const { generateRSAKeyPair, decryptAESKeyWithRSA, decryptWithAES } = require('../lib/cryptoHelper');
 const { saveKey, consumeKey } = require('../lib/keyStore');
 const { buildLoginResponse } = require('../services/authResponse.service');
+const { evaluarUsuario } = require('../lib/neurona');
 const {
   createLogin2FAChallenge,
   verifyLogin2FAChallenge,
   resendLogin2FACode
 } = require('../services/twoFactorAuth.service');
-const { buildLoginResponse } = require('../services/authResponse.service');
 
 const DISABLE_LOGIN_2FA = ['1', 'true', 'yes'].includes(String(process.env.DISABLE_LOGIN_2FA || '').toLowerCase());
 
@@ -51,7 +51,7 @@ function esContrasenaValida(password) {
 
   const tieneLongitudMinima = password.length >= 8;
   const tieneMayuscula = /[A-Z]/.test(password);
-  const tieneNumeroOSimbolo = /[0-9]|[^A-Za-z0-9]/.test(password);
+  const tieneNumeroOSimbolo = /\d|[^A-Za-z0-9]/.test(password);
 
   return tieneLongitudMinima && tieneMayuscula && tieneNumeroOSimbolo;
 }
@@ -69,173 +69,176 @@ exports.getPublicKey = (req, res) => {
     res.status(500).json({ message: 'Error interno del servidor' });
   }
 };
+function toOptionalInt(value, fallback = null) {
+  return value ? Number.parseInt(value) : fallback;
+}
+
+function isInscribableRole(rol) {
+  return rol === 1 || rol === 2;
+}
+
+function getPrioridadByScore(score) {
+  if (score >= 0.8) return 'alta';
+  if (score >= 0.5) return 'media';
+  return 'baja';
+}
+
+function buildUsuarioData(input, hashedPassword, rol, activo) {
+  return {
+    nombre: input.nombre,
+    apellido_paterno: input.apellido_paterno,
+    apellido_materno: input.apellido_materno,
+    contrasena: hashedPassword,
+    id_carrera: toOptionalInt(input.id_carrera),
+    id_division: toOptionalInt(input.id_division),
+    cuatrimestre: toOptionalInt(input.cuatrimestre, 1),
+    id_rol: rol,
+    activo
+  };
+}
+
+async function saveUsuario(tx, input, correoNormalizado, usuarioExistente, hashedPassword, rol, activo) {
+  const data = buildUsuarioData(input, hashedPassword, rol, activo);
+
+  if (usuarioExistente?.activo === false) {
+    return tx.usuario.update({
+      where: { correo: correoNormalizado },
+      data
+    });
+  }
+
+  return tx.usuario.create({
+    data: {
+      ...data,
+      correo: correoNormalizado
+    }
+  });
+}
+
+async function createPendingInscripcion(tx, userId, idHorario, diasSeleccionados = []) {
+  const periodoActivo = await tx.periodo.findFirst({
+    where: { estado: 'activo' },
+    select: { id_periodo: true }
+  });
+
+  if (!periodoActivo) {
+    throw new Error('No existe un periodo activo');
+  }
+
+  const inscripcion = await tx.inscripcion.create({
+    data: {
+      usuario: { connect: { id_usuario: userId } },
+      horario: { connect: { id_horario: Number.parseInt(idHorario) } },
+      periodo: { connect: { id_periodo: periodoActivo.id_periodo } },
+      fecha_inscripcion: new Date(),
+      estado: 'pendiente',
+      prioridad: 'normal'
+    }
+  });
+
+  if (diasSeleccionados.length === 0) {
+    return inscripcion;
+  }
+
+  await tx.inscripcionDia.createMany({
+    data: diasSeleccionados.map(idDia => ({
+      id_inscripcion: inscripcion.id_inscripcion,
+      id_dia: Number.parseInt(idDia)
+    }))
+  });
+
+  return inscripcion;
+}
+
+async function updateInscripcionByHistory(tx, user, inscripcion, correoNormalizado) {
+  const todasAsistencias = await tx.asistencia.findMany({
+    where: { id_usuario: user.id_usuario }
+  });
+
+  if (todasAsistencias.length === 0) {
+    return;
+  }
+
+  const asistidas = todasAsistencias.filter(asistencia => asistencia.asistio).length;
+  const faltas = todasAsistencias.length - asistidas;
+  const score = evaluarUsuario({ asistencias: asistidas, faltas });
+  const prioridad = getPrioridadByScore(score);
+  const shouldApprove = score >= 0.8;
+
+  await tx.inscripcion.update({
+    where: { id_inscripcion: inscripcion.id_inscripcion },
+    data: {
+      prioridad,
+      ...(shouldApprove && { estado: 'aprobado', fecha_decision: new Date() })
+    }
+  });
+
+  if (shouldApprove) {
+    console.log(`Auto-aprobado por neurona (score: ${score.toFixed(3)}): ${correoNormalizado}`);
+  }
+}
+
+async function createRegisteredUser(tx, input, correoNormalizado, usuarioExistente, hashedPassword) {
+  const rol = Number.parseInt(input.id_rol);
+  const activoAutomatico = rol === 3 || rol === 4;
+  const activo = activoAutomatico || (usuarioExistente?.activo === false && isInscribableRole(rol));
+  const user = await saveUsuario(tx, input, correoNormalizado, usuarioExistente, hashedPassword, rol, activo);
+
+  if (!isInscribableRole(rol)) {
+    return user;
+  }
+
+  const inscripcion = await createPendingInscripcion(tx, user.id_usuario, input.id_horario, input.dias_seleccionados);
+
+  if (usuarioExistente?.activo === false) {
+    await updateInscripcionByHistory(tx, user, inscripcion, correoNormalizado);
+  }
+
+  return user;
+}
+
 /**
  * REGISTRO DE USUARIO
  */
 exports.register = async (req, res) => {
   try {
-    const {
-      nombre,
-      apellido_paterno,
-      apellido_materno,
-      correo,
-      password,
-      id_carrera,
-      id_division,
-      cuatrimestre,
-      id_rol,
-      id_horario,
-      dias_seleccionados
-    } = req.body;
+    const input = req.body;
+    const correoNormalizado = input.correo.toLowerCase().trim();
 
-    const correoNormalizado = correo.toLowerCase().trim();
-    // Validar correo institucional
-if (!correoNormalizado.endsWith('@uteq.edu.mx')) {
-  return res.status(400).json({
-    message: 'Solo se permiten correos institucionales (@uteq.edu.mx)'
-  });
-}
-
-    if (!esContrasenaValida(password)) {
+    if (!correoNormalizado.endsWith('@uteq.edu.mx')) {
       return res.status(400).json({
-        message: 'La contraseña debe tener al menos 8 caracteres, una mayúscula y un número o símbolo especial'
+        message: 'Solo se permiten correos institucionales (@uteq.edu.mx)'
       });
     }
 
-    // 🔍 Buscar si el correo ya existe
+    if (!esContrasenaValida(input.password)) {
+      return res.status(400).json({
+        message: 'La contrasena debe tener al menos 8 caracteres, una mayuscula y un numero o simbolo especial'
+      });
+    }
+
     const usuarioExistente = await prisma.usuario.findUnique({
       where: { correo: correoNormalizado }
     });
 
-    // ❌ Si existe y está activo → rechazar
-    if (usuarioExistente && usuarioExistente.activo) {
-      return res.status(400).json({ message: 'El correo ya está registrado y en uso' });
+    if (usuarioExistente?.activo) {
+      return res.status(400).json({ message: 'El correo ya esta registrado y en uso' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(input.password, 10);
+    const nuevoUsuario = await prisma.$transaction(tx =>
+      createRegisteredUser(tx, input, correoNormalizado, usuarioExistente, hashedPassword)
+    );
 
-    const nuevoUsuario = await prisma.$transaction(async (tx) => {
-      const rol = parseInt(id_rol);
-      const activoAutomatico = rol === 3 || rol === 4;
+    const usuarioSeguro = { ...nuevoUsuario };
+    delete usuarioSeguro.contrasena;
 
-      let user;
+    const esReactivado = usuarioExistente?.activo === false;
+    const message = esReactivado
+      ? 'Usuario reactivado e inscrito correctamente.'
+      : 'Usuario registrado correctamente.';
 
-      if (usuarioExistente && !usuarioExistente.activo) {
-        // ♻️ Usuario inactivo → actualizar datos y reactivar
-        user = await tx.usuario.update({
-          where: { correo: correoNormalizado },
-          data: {
-            nombre,
-            apellido_paterno,
-            apellido_materno,
-            contrasena: hashedPassword,
-            id_carrera: id_carrera ? parseInt(id_carrera) : null,
-            id_division: id_division ? parseInt(id_division) : null,
-            cuatrimestre: cuatrimestre ? parseInt(cuatrimestre) : 1,
-            id_rol: rol,
-            activo: activoAutomatico || (rol === 1 || rol === 2)
-          }
-        });
-
-        console.log(`♻️ Usuario reactivado: ${correoNormalizado}`);
-
-      } else {
-        // 🆕 Usuario nuevo
-        user = await tx.usuario.create({
-          data: {
-            nombre,
-            apellido_paterno,
-            apellido_materno,
-            correo: correoNormalizado,
-            contrasena: hashedPassword,
-            id_carrera: id_carrera ? parseInt(id_carrera) : null,
-            id_division: id_division ? parseInt(id_division) : null,
-            cuatrimestre: cuatrimestre ? parseInt(cuatrimestre) : 1,
-            id_rol: rol,
-            activo: activoAutomatico
-          }
-        });
-      }
-
-      // Solo estudiantes y docentes crean inscripción
-      if (rol === 1 || rol === 2) {
-        const periodoActivo = await tx.periodo.findFirst({
-          where: { estado: 'activo' },
-          select: { id_periodo: true }
-        });
-
-        if (!periodoActivo) throw new Error('No existe un periodo activo');
-
-        const inscripcion = await tx.inscripcion.create({
-          data: {
-            usuario: { connect: { id_usuario: user.id_usuario } },
-            horario: { connect: { id_horario: parseInt(id_horario) } },
-            periodo: { connect: { id_periodo: periodoActivo.id_periodo } },
-            fecha_inscripcion: new Date(),
-            estado: 'pendiente',
-            prioridad: 'normal'
-          }
-        });
-
-        if (dias_seleccionados && dias_seleccionados.length > 0) {
-          await tx.inscripcionDia.createMany({
-            data: dias_seleccionados.map(id_dia => ({
-              id_inscripcion: inscripcion.id_inscripcion,
-              id_dia: parseInt(id_dia)
-            }))
-          });
-        }
-
-        // 🧠 Evaluar con neurona solo si es usuario reactivado con historial
-        if (usuarioExistente && !usuarioExistente.activo) {
-          const { evaluarUsuario } = require('../lib/neurona');
-
-          const todasAsistencias = await tx.asistencia.findMany({
-            where: { id_usuario: user.id_usuario }
-          });
-
-          const asistidas = todasAsistencias.filter(a => a.asistio).length;
-          const faltas = todasAsistencias.length - asistidas;
-
-          if (todasAsistencias.length > 0) {
-            const score = evaluarUsuario({ asistencias: asistidas, faltas });
-            const prioridad = score >= 0.8 ? 'alta' : score >= 0.5 ? 'media' : 'baja';
-
-            // Actualizar prioridad siempre
-            await tx.inscripcion.update({
-              where: { id_inscripcion: inscripcion.id_inscripcion },
-              data: { prioridad }
-            });
-
-            // Auto-aprobar si score alto
-            if (score >= 0.8) {
-              await tx.inscripcion.update({
-                where: { id_inscripcion: inscripcion.id_inscripcion },
-                data: {
-                  estado: 'aprobado',
-                  fecha_decision: new Date()
-                }
-              });
-
-              console.log(`🧠 Auto-aprobado por neurona (score: ${score.toFixed(3)}): ${correoNormalizado}`);
-            }
-          }
-        }
-      }
-
-      return user;
-    });
-
-    const { contrasena: _, ...usuarioSeguro } = nuevoUsuario;
-    const esReactivado = !!(usuarioExistente && !usuarioExistente.activo);
-
-    res.status(201).json({
-      message: esReactivado
-        ? 'Usuario reactivado e inscrito correctamente.'
-        : 'Usuario registrado correctamente.',
-      usuario: usuarioSeguro
-    });
-
+    res.status(201).json({ message, usuario: usuarioSeguro });
   } catch (error) {
     console.error('Error en registro:', error);
     res.status(500).json({

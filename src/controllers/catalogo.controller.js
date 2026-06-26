@@ -19,7 +19,7 @@ exports.getDivisiones = async (req, res) => {
 
 exports.getCarrerasByDivision = async (req, res) => {
   try {
-    const id_division = parseInt(req.params.id_division)
+    const id_division = Number.parseInt(req.params.id_division)
 
     const carreras = await prisma.carrera.findMany({
       where: { id_division },

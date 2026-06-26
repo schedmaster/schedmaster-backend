@@ -6,7 +6,7 @@ const prisma = require('../../prisma/client')
 // ==========================================
 const verificarLugares = async (id_horario, diasIds, client = prisma) => {
   const horario = await client.horario.findUnique({
-    where: { id_horario: parseInt(id_horario) }
+    where: { id_horario: Number.parseInt(id_horario) }
   })
 
   if (!horario) throw new Error('Horario no encontrado')
@@ -16,10 +16,10 @@ const verificarLugares = async (id_horario, diasIds, client = prisma) => {
   for (const id_dia of diasIds) {
     const ocupados = await client.inscripcion.count({
       where: {
-        id_horario: parseInt(id_horario),
+        id_horario: Number.parseInt(id_horario),
         estado: 'aprobado',
         diasSeleccionados: {
-          some: { id_dia: parseInt(id_dia) }
+          some: { id_dia: Number.parseInt(id_dia) }
         }
       }
     })
@@ -54,7 +54,7 @@ const enviarPropuesta = async (req, res) => {
     if (!inscripcion) return res.status(404).json({ message: 'No hay inscripción pendiente' })
 
     const horario = await prisma.horario.findUnique({
-      where: { id_horario: parseInt(horarioId) }
+      where: { id_horario: Number.parseInt(horarioId) }
     })
     if (!horario) return res.status(404).json({ message: 'Horario no encontrado' })
 
@@ -80,7 +80,7 @@ const enviarPropuesta = async (req, res) => {
     const propuesta = await prisma.propuesta.create({
       data: {
         id_inscripcion: inscripcion.id_inscripcion,
-        id_horario: parseInt(horarioId),
+        id_horario: Number.parseInt(horarioId),
         id_usuario: usuario.id_usuario,
         estado: 'pendiente'
       }
@@ -89,7 +89,7 @@ const enviarPropuesta = async (req, res) => {
     await prisma.propuestaDia.createMany({
       data: dias.map(d => ({
         id_propuesta: propuesta.id_propuesta,
-        id_dia: parseInt(d)
+        id_dia: Number.parseInt(d)
       }))
     })
 
@@ -141,7 +141,7 @@ const obtenerPropuestaUsuario = async (req, res) => {
   try {
     const { id_usuario } = req.params
     const propuesta = await prisma.propuesta.findFirst({
-      where: { id_usuario: parseInt(id_usuario), estado: 'pendiente' },
+      where: { id_usuario: Number.parseInt(id_usuario), estado: 'pendiente' },
       include: { horario: true, dias: { include: { dia: true } } },
       orderBy: { id_propuesta: 'desc' }
     })
@@ -160,7 +160,7 @@ const aceptarPropuesta = async (req, res) => {
     const { id_propuesta } = req.body
     await prisma.$transaction(async (tx) => {
       const propuesta = await tx.propuesta.findUnique({
-        where: { id_propuesta: parseInt(id_propuesta) },
+        where: { id_propuesta: Number.parseInt(id_propuesta) },
         include: { dias: true }
       })
 
@@ -213,7 +213,7 @@ const rechazarPropuesta = async (req, res) => {
 
     await prisma.$transaction(async (tx) => {
       const propuesta = await tx.propuesta.findUnique({
-        where: { id_propuesta: parseInt(id_propuesta) }
+        where: { id_propuesta: Number.parseInt(id_propuesta) }
       })
       if (!propuesta) throw new Error('Propuesta no encontrada')
 

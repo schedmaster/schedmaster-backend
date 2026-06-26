@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 
 async function sendMail({ from, to, subject, text, html }) {
   try {
@@ -18,20 +18,20 @@ async function sendMail({ from, to, subject, text, html }) {
       })
     });
 
-    if (!res.ok) {
-      const err = await res.json();
-      console.log("❌ Error Mailer:", err);
+    if (res.ok) {
+      console.log("Correo enviado correctamente");
     } else {
-      console.log("✅ Correo enviado correctamente");
+      const err = await res.json();
+      console.log("Error Mailer:", err);
     }
   } catch (error) {
-    console.log("❌ Error Mailer:", error);
+    console.log("âŒ Error Mailer:", error);
   }
 }
 
 async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
   if (DISABLE_MAILER) {
-    console.log(`⚠️ Correo 2FA omitido para ${to}`);
+    console.log(`âš ï¸ Correo 2FA omitido para ${to}`);
     return;
   }
 
@@ -89,7 +89,7 @@ async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
 async function sendConvocatoriaActivaEmail({ to, periodo }) {
   try {
     if (DISABLE_MAILER) {
-      console.log(`⚠️ Correo de convocatoria omitido para ${to}`);
+      console.log(`âš ï¸ Correo de convocatoria omitido para ${to}`);
       return;
     }
 
@@ -129,7 +129,7 @@ async function sendConvocatoriaActivaEmail({ to, periodo }) {
               </tr>
               <tr>
                 <td style="background:#f9fafb;text-align:center;padding:10px;font-size:12px;color:#777;">
-                  © 2026 ${appName}
+                  Â© 2026 ${appName}
                 </td>
               </tr>
             </table>
@@ -144,9 +144,9 @@ async function sendConvocatoriaActivaEmail({ to, periodo }) {
       html
     });
 
-    console.log("✅ Correo de convocatoria enviado");
+    console.log("âœ… Correo de convocatoria enviado");
   } catch (error) {
-    console.error("❌ Error enviando correo:", error);
+    console.error("âŒ Error enviando correo:", error);
   }
 }
 

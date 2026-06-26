@@ -48,7 +48,7 @@ exports.obtenerPeriodos = async (req, res) => {
 
     if (q && String(q).trim() !== '') {
       const textoBusqueda = String(q).trim();
-      const posibleId = parseInt(textoBusqueda, 10);
+      const posibleId = Number.parseInt(textoBusqueda, 10);
 
       where.OR = [
         { nombre_periodo: { contains: textoBusqueda } }
@@ -92,7 +92,7 @@ exports.actualizarPeriodo = async (req, res) => {
 
     // 🔍 Obtener estado anterior
     const periodoAntes = await prisma.periodo.findUnique({
-      where: { id_periodo: parseInt(id) }
+      where: { id_periodo: Number.parseInt(id) }
     });
 
     if (!periodoAntes) {
@@ -101,7 +101,7 @@ exports.actualizarPeriodo = async (req, res) => {
 
     // ✏️ Actualizar periodo
     const actualizado = await prisma.periodo.update({
-      where: { id_periodo: parseInt(id) },
+      where: { id_periodo: Number.parseInt(id) },
       data: {
         nombre_periodo,
         fecha_inicio_inscripcion: new Date(fecha_inicio_inscripcion),
@@ -118,7 +118,7 @@ exports.actualizarPeriodo = async (req, res) => {
       setTimeout(async () => {
         try {
           const inscripciones = await prisma.inscripcion.findMany({
-            where: { id_periodo: parseInt(id) },
+            where: { id_periodo: Number.parseInt(id) },
             select: { id_usuario: true }
           });
 
