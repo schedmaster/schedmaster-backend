@@ -199,7 +199,7 @@ exports.getDashboardStats = async (req, res) => {
       prisma.asistencia.count({ where: { fecha: { gte: hoyInicio, lte: hoyFin }, asistio: true } }),
       prisma.inscripcion.count({ where: { estado: 'aprobado' } }),
       prisma.propuesta.count(),
-      prisma.anuncio?.count({ where: { activo: true } }) || 0
+      prisma.anuncio.count({ where: { activo: true } })
     ]);
 
     const inscripcionesMes = Array(12).fill(0);
