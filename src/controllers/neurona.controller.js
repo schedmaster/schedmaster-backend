@@ -108,6 +108,7 @@ const evaluarUsuario = (req, res) => {
       faltas
     });
   } catch (error) {
+    console.error('Error al evaluar usuario:', error);
     res.status(500).json({ error: 'Error al evaluar.' });
   }
 };

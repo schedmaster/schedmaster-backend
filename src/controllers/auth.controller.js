@@ -184,14 +184,17 @@ async function createRegisteredUser(tx, input, correoNormalizado, usuarioExisten
   const activo = activoAutomatico || (usuarioExistente?.activo === false && isInscribableRole(rol));
   const user = await saveUsuario(tx, input, correoNormalizado, usuarioExistente, hashedPassword, rol, activo);
 
-  if (!isInscribableRole(rol)) {
-    return user;
-  }
+  if (isInscribableRole(rol)) {
+    const inscripcion = await createPendingInscripcion(
+      tx,
+      user.id_usuario,
+      input.id_horario,
+      input.dias_seleccionados
+    );
 
-  const inscripcion = await createPendingInscripcion(tx, user.id_usuario, input.id_horario, input.dias_seleccionados);
-
-  if (usuarioExistente?.activo === false) {
-    await updateInscripcionByHistory(tx, user, inscripcion, correoNormalizado);
+    if (usuarioExistente?.activo === false) {
+      await updateInscripcionByHistory(tx, user, inscripcion, correoNormalizado);
+    }
   }
 
   return user;

@@ -102,7 +102,7 @@ exports.obtenerPendientes = async (req, res) => {
         id_inscripcion: insc.id_inscripcion,
         usuario: insc.usuario,
         prioridad: prioridadCalculada,
-        score: score !== null ? Number(score.toFixed(3)) : null,
+        score: score === null ? null : Number(score.toFixed(3)),
         asistencias: asistidas,
         faltas,
         estado: insc.estado,
