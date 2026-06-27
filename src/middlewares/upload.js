@@ -1,4 +1,5 @@
 const multer = require('multer');
+const { randomUUID } = require('node:crypto');
 const path = require('node:path');
 
 const IMAGE_UPLOAD_LIMIT_BYTES = 5 * 1024 * 1024;
@@ -10,7 +11,7 @@ const storage = multer.diskStorage({
 
   filename: (req, file, cb) => {
     const extension = path.extname(file.originalname).toLowerCase();
-    const uniqueName = `${Date.now()}-${Math.round(Math.random() * 1e9)}${extension}`;
+    const uniqueName = `${randomUUID()}${extension}`;
     cb(null, uniqueName);
   },
 });
