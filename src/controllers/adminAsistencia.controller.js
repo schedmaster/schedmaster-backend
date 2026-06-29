@@ -1,5 +1,5 @@
-const crypto = require("crypto");
-const fs = require("fs");
+const crypto = require("node:crypto");
+const fs = require("node:fs");
 const prisma = require("../../prisma/client");
 
 // ==========================================
@@ -139,10 +139,11 @@ exports.uploadAndHash = async (req, res) => {
     if (await prisma.asistenciaHistorico.findFirst({ where: { hash_archivo: hash } })) return res.status(400).json({ message: "El archivo ya existe" });
 
     await prisma.asistenciaHistorico.create({
-      data: { nombre_archivo: file.originalname, ruta_archivo: `uploads/${file.filename}`, hash_archivo: hash, fecha_lista: new Date(fecha), id_usuario: parseInt(id_usuario) }
+      data: { nombre_archivo: file.originalname, ruta_archivo: `uploads/${file.filename}`, hash_archivo: hash, fecha_lista: new Date(fecha), id_usuario: Number.parseInt(id_usuario) }
     });
     res.json({ message: "Archivo procesado con éxito", hash });
   } catch (error) {
+    console.error("Error al subir asistencia:", error);
     res.status(500).json({ message: "Error al subir" });
   }
 };
@@ -150,10 +151,11 @@ exports.uploadAndHash = async (req, res) => {
 exports.obtenerHistorico = async (req, res) => {
   try {
     const { q } = req.query;
-    const where = q ? { OR: [{ nombre_archivo: { contains: String(q) } }, { id_historico: parseInt(q) || undefined }] } : {};
+    const where = q ? { OR: [{ nombre_archivo: { contains: String(q) } }, { id_historico: Number.parseInt(q) || undefined }] } : {};
     const historico = await prisma.asistenciaHistorico.findMany({ where, orderBy: { fecha_lista: "desc" } });
     res.json(historico);
   } catch (error) {
+    console.error("Error al obtener historico:", error);
     res.status(500).json({ message: "Error al obtener histórico" });
   }
 };
@@ -182,6 +184,7 @@ exports.getReporteEstadisticas = async (req, res) => {
     });
     res.json(reporte);
   } catch (error) {
+    console.error("Error al generar reporte de estadisticas:", error);
     res.status(500).json({ message: "Error al generar el reporte" });
   }
 };
@@ -199,11 +202,11 @@ exports.getDashboardStats = async (req, res) => {
       prisma.asistencia.count({ where: { fecha: { gte: hoyInicio, lte: hoyFin }, asistio: true } }),
       prisma.inscripcion.count({ where: { estado: 'aprobado' } }),
       prisma.propuesta.count(),
-      prisma.anuncio?.count({ where: { activo: true } }) || 0
+      prisma.anuncio.count({ where: { activo: true } })
     ]);
 
-    const inscripcionesMes = Array(12).fill(0);
-    const interesadosMes = Array(12).fill(0);
+    const inscripcionesMes = new Array(12).fill(0);
+    const interesadosMes = new Array(12).fill(0);
     const unAñoAtras = new Date(ahora.getFullYear() - 1, ahora.getMonth() + 1, 1);
 
     const historial = await prisma.inscripcion.findMany({

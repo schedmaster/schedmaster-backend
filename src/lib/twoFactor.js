@@ -1,9 +1,9 @@
 const crypto = require('node:crypto');
 
-const CODE_TTL_MINUTES = parseInt(process.env.TWO_FA_CODE_TTL_MINUTES || '2', 10);
-const MAX_ATTEMPTS = parseInt(process.env.TWO_FA_MAX_ATTEMPTS || '5', 10);
-const MAX_SENDS = parseInt(process.env.TWO_FA_MAX_SENDS || '3', 10);
-const RESEND_COOLDOWN_SECONDS = parseInt(process.env.TWO_FA_RESEND_COOLDOWN_SECONDS || '60', 10);
+const CODE_TTL_MINUTES = Number.parseInt(process.env.TWO_FA_CODE_TTL_MINUTES || '2', 10);
+const MAX_ATTEMPTS = Number.parseInt(process.env.TWO_FA_MAX_ATTEMPTS || '5', 10);
+const MAX_SENDS = Number.parseInt(process.env.TWO_FA_MAX_SENDS || '3', 10);
+const RESEND_COOLDOWN_SECONDS = Number.parseInt(process.env.TWO_FA_RESEND_COOLDOWN_SECONDS || '60', 10);
 
 function normalizeCode(code) {
   return String(code || '').trim();

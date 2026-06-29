@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+const fs = require("node:fs");
+const path = require("node:path");
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
@@ -79,6 +79,7 @@ const obtenerModelo = (req, res) => {
     const modelo = JSON.parse(fs.readFileSync(MODELO_PATH, 'utf-8'));
     res.json(modelo);
   } catch (error) {
+    console.error('Error al leer el modelo:', error);
     res.status(500).json({ error: 'Error al leer el modelo.' });
   }
 };
@@ -107,6 +108,7 @@ const evaluarUsuario = (req, res) => {
       faltas
     });
   } catch (error) {
+    console.error('Error al evaluar usuario:', error);
     res.status(500).json({ error: 'Error al evaluar.' });
   }
 };
@@ -130,7 +132,7 @@ const evaluarTodos = async (req, res) => {
       const faltas    = total - asistidas;
 
       // ── Caso especial: forzar 100% ───────────────────────
-      if (u.correo && u.correo.includes(CORREO_VIP)) {
+      if (u.correo?.includes(CORREO_VIP)) {
         return {
           id:            u.id_usuario,
           nombre:        `${u.nombre} ${u.apellido_paterno}`,

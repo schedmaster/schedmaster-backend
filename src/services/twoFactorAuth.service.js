@@ -72,7 +72,7 @@ async function resendLogin2FACode(challengeId) {
     }
   });
 
-  if (!challenge || challenge.intent !== 'login') {
+  if (challenge?.intent !== 'login') {
     return { status: 'invalid_challenge' };
   }
 
@@ -128,7 +128,7 @@ async function verifyLogin2FAChallenge(challengeId, code) {
     where: { id: challengeId }
   });
 
-  if (!challenge || challenge.intent !== 'login') {
+  if (challenge?.intent !== 'login') {
     return { status: 'invalid_challenge' };
   }
 
