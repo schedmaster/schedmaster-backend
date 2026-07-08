@@ -31,16 +31,33 @@ const allowedOrigins = [
   'https://schedmaster-frontend.vercel.app'
 ].filter(Boolean);
 
+function normalizeOrigin(value) {
+  if (!value) return '';
+  return value.trim().replace(/\/$/, '');
+}
+
+function getOriginHostname(origin) {
+  try {
+    return new URL(origin).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
 function isAllowedOrigin(origin) {
   if (!origin) {
     return true;
   }
 
-  if (allowedOrigins.includes(origin)) {
+  const normalizedOrigin = normalizeOrigin(origin);
+  const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin);
+
+  if (normalizedAllowedOrigins.includes(normalizedOrigin)) {
     return true;
   }
 
-  return /\.vercel\.app$/.test(origin) || /\.onrender\.com$/.test(origin);
+  const hostname = getOriginHostname(normalizedOrigin);
+  return hostname.endsWith('.vercel.app') || hostname.endsWith('.onrender.com');
 }
 
 app.use(cors({
