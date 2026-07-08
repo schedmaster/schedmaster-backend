@@ -1,10 +1,6 @@
-const mysql = require('mysql2/promise');
+const { PrismaClient } = require('@prisma/client');
 
-const pool = mysql.createPool({
-  host: 'localhost',
-  user: 'root',
-  password: '26R12R05g',
-  database: 'schedmaster',
-});
+// Legacy compatibility entrypoint: the project now uses Prisma + DATABASE_URL.
+const prisma = new PrismaClient();
 
-module.exports = pool;
+module.exports = prisma;

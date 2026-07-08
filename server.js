@@ -22,18 +22,50 @@ const prisma = new PrismaClient();
 // Middlewares
 // ==========================================
 
-// Configuración de CORS más explícita para evitar el "Failed to fetch"
+// Configuración de CORS para soportar local y despliegues en Render/Vercel
 const allowedOrigins = [
   'http://localhost:3000',
+  'http://localhost:3002',
+  process.env.FRONTEND_URL,
+  process.env.CORS_ORIGIN,
   'https://schedmaster-frontend.vercel.app'
-];
+].filter(Boolean);
+
+function normalizeOrigin(value) {
+  if (!value) return '';
+  return value.trim().replace(/\/$/, '');
+}
+
+function getOriginHostname(origin) {
+  try {
+    return new URL(origin).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  const normalizedOrigin = normalizeOrigin(origin);
+  const normalizedAllowedOrigins = allowedOrigins.map(normalizeOrigin);
+
+  if (normalizedAllowedOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+
+  const hostname = getOriginHostname(normalizedOrigin);
+  return hostname.endsWith('.vercel.app') || hostname.endsWith('.onrender.com');
+}
 
 app.use(cors({
   origin: function (origin, callback) {
     console.log("Origin recibido:", origin);
 
-    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
-      callback(null, origin);
+    if (isAllowedOrigin(origin)) {
+      callback(null, origin || true);
     } else {
       callback(new Error('No permitido por CORS'));
     }
