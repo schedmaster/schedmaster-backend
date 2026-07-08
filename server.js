@@ -30,7 +30,7 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: function (origin, callback) {
-    console.log("🌍 Origin recibido:", origin);
+    console.log("Origin recibido:", origin);
 
     if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, origin);
@@ -47,7 +47,7 @@ app.use(express.json());
 
 // Logger simple: Te avisará en la terminal qué ruta están picando
 app.use((req, res, next) => {
-  console.log(`📡 Petición recibida: ${req.method} ${req.url}`);
+  console.log(`Petición recibida: ${req.method} ${req.url}`);
   next();
 });
 
@@ -73,9 +73,9 @@ app.use('/uploads', express.static('uploads'));
 app.get('/test-db', async (req, res) => {
   try {
     const totalUsuarios = await prisma.usuario.count();
-    res.json({ message: 'Conexión a MySQL exitosa', usuariosEnSistema: totalUsuarios });
+    res.json({ message: 'Conexión a PostgreSQL exitosa', usuariosEnSistema: totalUsuarios });
   } catch (error) {
-    console.error("❌ Error en test-db:", error);
+    console.error("Error en test-db:", error);
     res.status(500).json({ message: 'Error de conexión', details: error.message });
   }
 });
@@ -94,8 +94,8 @@ app.use('/api/neurona', neuronaRoutes)
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`
-  🚀 SchedMaster Backend listo!
-  🌍 URL: http://localhost:${PORT}
-  🛠️  CORS habilitado para puerto 3000
+   SchedMaster Backend listo!
+   URL: http://localhost:${PORT}
+   CORS habilitado para puerto 3000
   `);
 });
