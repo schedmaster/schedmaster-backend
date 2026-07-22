@@ -1,5 +1,6 @@
 function buildLoginResponse(user) {
-  const { contrasena: _, ...usuarioSeguro } = user;
+  const usuarioSeguro = { ...user };
+  delete usuarioSeguro.contrasena;
 
   if (user.id_rol === 3 || user.id_rol === 4) {
     return {

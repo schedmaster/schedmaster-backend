@@ -34,12 +34,12 @@ exports.toggleUsuario = async (req, res) => {
   try {
     const { id_usuario } = req.body;
     const usuario = await prisma.usuario.findUnique({
-      where: { id_usuario: parseInt(id_usuario) }
+      where: { id_usuario: Number.parseInt(id_usuario) }
     });
     if (!usuario) return res.status(404).json({ message: 'Usuario no encontrado' });
 
     const actualizado = await prisma.usuario.update({
-      where: { id_usuario: parseInt(id_usuario) },
+      where: { id_usuario: Number.parseInt(id_usuario) },
       data: { activo: !usuario.activo }
     });
     res.json({ message: actualizado.activo ? 'Usuario activado' : 'Usuario desactivado', activo: actualizado.activo });
@@ -56,14 +56,14 @@ exports.editarUsuario = async (req, res) => {
   try {
     const { id_usuario, nombre, apellido_paterno, apellido_materno, correo, id_rol, id_carrera } = req.body;
     const usuario = await prisma.usuario.update({
-      where: { id_usuario: parseInt(id_usuario) },
+      where: { id_usuario: Number.parseInt(id_usuario) },
       data: {
         nombre,
         apellido_paterno,
         apellido_materno,
         correo,
-        id_rol: parseInt(id_rol),
-        ...(id_carrera !== undefined && { id_carrera: id_carrera ? parseInt(id_carrera) : null })
+        id_rol: Number.parseInt(id_rol),
+        ...(id_carrera !== undefined && { id_carrera: id_carrera ? Number.parseInt(id_carrera) : null })
       }
     });
     res.json(usuario);
@@ -96,7 +96,7 @@ exports.crearUsuario = async (req, res) => {
         apellido_materno: apellido_materno || '',
         correo,
         contrasena: contrasenaHash,
-        id_rol: parseInt(id_rol),
+        id_rol: Number.parseInt(id_rol),
         activo: true
       }
     });
@@ -114,7 +114,7 @@ exports.obtenerBitacora = async (req, res) => {
   try {
     const { id_usuario } = req.params;
     const entradas = await prisma.bitacoraEntrada.findMany({
-      where: { id_usuario: parseInt(id_usuario) },
+      where: { id_usuario: Number.parseInt(id_usuario) },
       orderBy: { fecha: 'desc' }
     });
     res.json(entradas);
@@ -135,7 +135,7 @@ exports.agregarBitacora = async (req, res) => {
     }
     const entrada = await prisma.bitacoraEntrada.create({
       data: {
-        id_usuario: parseInt(id_usuario),
+        id_usuario: Number.parseInt(id_usuario),
         autor_nombre: autor_nombre || 'Admin',
         texto
       }
