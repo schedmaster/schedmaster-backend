@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const { PrismaClient } = require('@prisma/client');
 
 // 🔹 Importar rutas
@@ -22,17 +23,93 @@ const prisma = new PrismaClient();
 // Middlewares
 // ==========================================
 
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+const DEFAULT_ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
+    .split(',')
+    .map(origin => origin.trim())
+    .filter(Boolean)
+);
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: true,
+    directives: {
+      "default-src": ["'self'"],
+      "img-src": ["'self'", 'data:'],
+      "script-src": ["'self'"],
+      "style-src": ["'self'", "'unsafe-inline'"],
+      "connect-src": ["'self'"],
+      "object-src": ["'none'"],
+      "base-uri": ["'self'"],
+      "frame-ancestors": ["'none'"],
+      "form-action": ["'self'"]
+    }
+  },
+  hsts: {
+    maxAge: 15552000,
+    includeSubDomains: true
+  },
+  frameguard: { action: 'deny' },
+  noSniff: true
+}));
+
+function logSecurityEvent(event, req, details = {}) {
+  const safeDetails = Object.entries(details)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(' ');
+
+  console.warn([
+    '[security]',
+    `event=${event}`,
+    `method=${req.method}`,
+    `path=${req.originalUrl || req.url}`,
+    `ip=${req.ip}`,
+    safeDetails
+  ].filter(Boolean).join(' '));
+}
+
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    if (res.statusCode >= 400) {
+      const event = req.path.startsWith('/api/auth/login') && res.statusCode === 401
+        ? 'failed_login'
+        : 'http_error';
+
+      logSecurityEvent(event, req, { status: res.statusCode });
+    }
+  });
+
+  next();
+});
+
 // CORS de compatibilidad total para despliegues (evita 500 por Origin inválido)
 const corsOptions = {
-  origin: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Origen no permitido por CORS'));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 204,
   credentials: true
 };
 
 app.use(cors(corsOptions));
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // Logger simple: Te avisará en la terminal qué ruta están picando
 app.use((req, res, next) => {
@@ -43,6 +120,10 @@ app.use((req, res, next) => {
 // ==========================================
 // Rutas principales
 // ==========================================
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'schedmaster-backend' });
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/catalogo', catalogoRoutes);
 app.use('/api/horarios', horarioRoutes);
@@ -80,11 +161,18 @@ app.use('/api/neurona', neuronaRoutes)
 // ==========================================
 // Puerto y Encendido
 // ==========================================
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`
-   SchedMaster Backend listo!
-   URL: http://localhost:${PORT}
-   CORS habilitado para puerto 3000
-  `);
-});
+function startServer(port = process.env.PORT || 3001) {
+  return app.listen(port, () => {
+    console.log(`
+     SchedMaster Backend listo!
+     URL: http://localhost:${port}
+     CORS origins: ${Array.from(allowedOrigins).join(', ')}
+    `);
+  });
+}
+
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { app, startServer, allowedOrigins, prisma };
