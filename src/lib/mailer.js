@@ -10,7 +10,10 @@ async function sendMail({ from, to, subject, text, html }) {
       },
       // redeploy
       body: JSON.stringify({
-        sender: { name: "SchedMaster", email: "schedmasteruteq@gmail.com" },
+        sender: {
+          name: process.env.MAIL_FROM_NAME || "SchedMaster",
+          email: from || process.env.MAIL_FROM_EMAIL || "no-reply@example.invalid"
+        },
         to: [{ email: to }],
         subject,
         textContent: text,

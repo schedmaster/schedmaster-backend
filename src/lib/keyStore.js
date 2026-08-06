@@ -54,7 +54,7 @@ function consumeKey(keyId) {
  * Limpieza periódica de entradas expiradas para evitar acumulación en memoria.
  * Se ejecuta cada minuto de forma automática.
  */
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [keyId, entry] of store.entries()) {
     if (now > entry.expiresAt) {
@@ -62,5 +62,7 @@ setInterval(() => {
     }
   }
 }, 60 * 1000);
+
+cleanupInterval.unref?.();
 
 module.exports = { saveKey, consumeKey };
