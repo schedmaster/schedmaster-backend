@@ -1,6 +1,11 @@
 const prisma = require('../../prisma/client');
 const bcrypt = require('bcrypt');
 
+// ✅ FIX T12: id_rol ya no proviene del cliente (body). Se asigna por
+// defecto al crear usuarios, evitando que un entrenador/escalador de
+// privilegios cree cuentas con rol administrador (id_rol=4).
+const ROL_USUARIO_DEFAULT = 1;
+
 // ==========================================
 // OBTENER USUARIOS
 // ==========================================
@@ -78,9 +83,10 @@ exports.editarUsuario = async (req, res) => {
 // ==========================================
 exports.crearUsuario = async (req, res) => {
   try {
-    const { nombre, apellido_paterno, apellido_materno, correo, contrasena, id_rol } = req.body;
+    // ✅ FIX T12: id_rol ya no se acepta del cliente. Se asigna por defecto.
+    const { nombre, apellido_paterno, apellido_materno, correo, contrasena } = req.body;
 
-    if (!nombre || !apellido_paterno || !correo || !contrasena || !id_rol) {
+    if (!nombre || !apellido_paterno || !correo || !contrasena) {
       return res.status(400).json({ message: 'Faltan campos obligatorios' });
     }
 
@@ -96,7 +102,7 @@ exports.crearUsuario = async (req, res) => {
         apellido_materno: apellido_materno || '',
         correo,
         contrasena: contrasenaHash,
-        id_rol: Number.parseInt(id_rol),
+        id_rol: ROL_USUARIO_DEFAULT,
         activo: true
       }
     });
