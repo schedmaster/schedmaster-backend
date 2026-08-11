@@ -1,5 +1,6 @@
 const { sendMail } = require('../lib/mailer')
 const prisma = require('../../prisma/client')
+const escapeHtml = require('escape-html')
 
 // ==========================================
 // HELPER — verificar lugares disponibles
@@ -100,14 +101,16 @@ const enviarPropuesta = async (req, res) => {
 
     const FRONTEND_URL = process.env.FRONTEND_URL || 'https://schedmaster-frontend.vercel.app';
 
+    // ✅ FIX T9 (CWE-79): usuario.nombre y diasTexto se escapan antes de
+    // interpolarse en el HTML del correo, para evitar XSS almacenado.
     const html = `
       <div style="font-family: Arial, sans-serif; max-width:600px; margin:auto; border:1px solid #eee; padding:20px; border-radius:10px; color: #333;">
         <h2 style="color:#2563eb;">Propuesta de Horario - SchedMaster UTEQ</h2>
-        <p>Hola <strong>${usuario.nombre}</strong>,</p>
+        <p>Hola <strong>${escapeHtml(usuario.nombre)}</strong>,</p>
         <p>Hemos revisado tu solicitud y te proponemos un nuevo horario:</p>
         <div style="background:#f3f4f6; padding:15px; border-radius:8px; margin:20px 0; border-left: 5px solid #2563eb;">
           <p style="margin: 5px 0;"><strong>Horario:</strong> ${horario.hora_inicio.substring(0,5)} - ${horario.hora_fin.substring(0,5)}</p>
-          <p style="margin: 5px 0;"><strong>Días:</strong> ${diasTexto}</p>
+          <p style="margin: 5px 0;"><strong>Días:</strong> ${escapeHtml(diasTexto)}</p>
         </div>
         <p>Haz clic en el botón para aceptar o rechazar:</p>
         <div style="text-align: center; margin: 30px 0;">
