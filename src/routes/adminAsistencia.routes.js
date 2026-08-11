@@ -3,6 +3,8 @@ const router = express.Router();
 const multer = require("multer");
 const path = require("node:path");
 const adminAsistenciaController = require("../controllers/adminAsistencia.controller");
+const authMiddleware = require("../middlewares/authMiddleware");
+const requireRole = require("../middlewares/requireRole");
 
 const ASISTENCIA_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
 const ALLOWED_FILE_TYPES = new Set([
@@ -14,7 +16,7 @@ const ALLOWED_FILE_TYPES = new Set([
 const ALLOWED_FILE_EXTENSIONS = new Set([".pdf", ".xls", ".xlsx", ".csv"]);
 
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  Destination: (req, file, cb) => {
     cb(null, "uploads/");
   },
   filename: (req, file, cb) => {
@@ -47,19 +49,27 @@ const upload = multer({
 
 /* ==========================
    RUTAS DEL MODULO
-========================== */
+========================= */
 
-router.get("/admin", adminAsistenciaController.getAsistenciasAdmin);
-router.post("/registrar", adminAsistenciaController.registrarAsistencia);
+// ✅ FIX T4: todas las rutas de asistencia ahora requieren JWT válido
+// (authMiddleware). La ruta /registrar deriva id_registrado_por de la
+// sesión en lugar de aceptarlo del cliente, evitando suplantación de identidad.
+const ROL_ENTRENADOR = 3;
+const ROL_ADMIN_GENERAL = 4;
+
+router.get("/admin", authMiddleware, requireRole([ROL_ENTRENADOR, ROL_ADMIN_GENERAL]), adminAsistenciaController.getAsistenciasAdmin);
+router.post("/registrar", authMiddleware, requireRole([ROL_ENTRENADOR, ROL_ADMIN_GENERAL]), adminAsistenciaController.registrarAsistencia);
 
 router.post(
   "/upload-and-hash",
+  authMiddleware,
+  requireRole([ROL_ENTRENADOR, ROL_ADMIN_GENERAL]),
   upload.single("archivo"),
   adminAsistenciaController.uploadAndHash
 );
 
-router.get("/historico", adminAsistenciaController.obtenerHistorico);
-router.get("/reporte", adminAsistenciaController.getReporteEstadisticas);
-router.get("/dashboard-stats", adminAsistenciaController.getDashboardStats);
+router.get("/historico", authMiddleware, requireRole([ROL_ENTRENADOR, ROL_ADMIN_GENERAL]), adminAsistenciaController.obtenerHistorico);
+router.get("/reporte", authMiddleware, requireRole([ROL_ENTRENADOR, ROL_ADMIN_GENERAL]), adminAsistenciaController.getReporteEstadisticas);
+router.get("/dashboard-stats", authMiddleware, requireRole([ROL_ENTRENADOR, ROL_ADMIN_GENERAL]), adminAsistenciaController.getDashboardStats);
 
 module.exports = router;

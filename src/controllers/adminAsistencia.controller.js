@@ -82,22 +82,17 @@ exports.getAsistenciasAdmin = async (req, res) => {
 // ==========================================
 exports.registrarAsistencia = async (req, res) => {
   try {
-    const { id_usuario, id_inscripcion, id_horario, asistio, id_registrado_por, fecha_registro } = req.body;
+    // ✅ FIX T4: id_registrado_por y fecha_registro ya no provienen del
+    // cliente (body). Se derivan de la sesión (req.user) y del servidor
+    // (new Date()), evitando suplantación de identidad en el registro de asistencia.
+    const { id_usuario, id_inscripcion, id_horario, asistio } = req.body;
+    const id_registrado_por = req.user.id_usuario;
     const fechaActual = new Date();
 
-    // ✅ Se elimina la validación de fecha contra el servidor (problema de zona horaria UTC vs México).
-    // La validación de "solo hoy" y "dentro del horario" ya la hace el frontend antes de llamar aquí.
-
     let inicioDia, finDia;
-    if (fecha_registro) {
-      const partes = fecha_registro.split('-');
-      const fechaLocal = new Date(Number(partes[0]), Number(partes[1]) - 1, Number(partes[2]));
-      inicioDia = new Date(fechaLocal); inicioDia.setHours(0, 0, 0, 0);
-      finDia    = new Date(fechaLocal); finDia.setHours(23, 59, 59, 999);
-    } else {
-      inicioDia = new Date(fechaActual); inicioDia.setHours(0, 0, 0, 0);
-      finDia    = new Date(fechaActual); finDia.setHours(23, 59, 59, 999);
-    }
+    // Siempre usa la fecha del servidor; no se acepta fecha_registro del cliente.
+    inicioDia = new Date(fechaActual); inicioDia.setHours(0, 0, 0, 0);
+    finDia    = new Date(fechaActual); finDia.setHours(23, 59, 59, 999);
 
     const asistenciaExistente = await prisma.asistencia.findFirst({
       where: { id_usuario: Number(id_usuario), fecha: { gte: inicioDia, lte: finDia } }
@@ -115,7 +110,7 @@ exports.registrarAsistencia = async (req, res) => {
             id_horario: Number(id_horario),
             fecha: new Date(),
             asistio: Boolean(asistio),
-            id_registrado_por: Number(id_registrado_por || 1)
+            id_registrado_por: Number(id_registrado_por)
           }
         });
 
