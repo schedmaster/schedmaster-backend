@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "nodemon server.js",
     "start": "node server.js",
-    "test": "node test/security.test.js",
+    "test": "jest test/security --runInBand",
+    "test:security": "jest test/security/ --runInBand",
+    "test:t12": "jest test/security/t12.id-rol.test.js --runInBand",
+    "test:t4": "jest test/security/t4.id-registrado-por.test.js --runInBand",
+    "test:t9": "jest test/security/t9.xss-escape.test.js --runInBand",
     "coverage": "node --experimental-test-coverage test/security.test.js"
   },
   "prisma": {
@@ -30,18 +34,21 @@
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
+    "escape-html": "^1.0.3",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "jspdf-autotable": "^5.0.7",
-    "mailer": "^0.6.7",
+    "mailer": "^0.6.6",
     "multer": "^2.1.1",
     "mysql2": "^3.17.2",
-    "nodemailer": "^8.0.4",
+    "nodemailer": "^9.0.5",
     "resend": "^6.10.0"
   },
   "devDependencies": {
+    "jest": "^30.4.2",
     "nodemon": "^3.1.11",
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "supertest": "^7.2.2"
   }
 }
