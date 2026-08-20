@@ -158,6 +158,9 @@ app.use('/imagenes', express.static('public/imagenes'));
 
 const neuronaRoutes = require('./src/routes/neurona.routes')
 app.use('/api/neurona', neuronaRoutes)
+
+const rutinaRoutes = require('./src/routes/rutina.routes');
+app.use('/api/rutinas', rutinaRoutes);
 // ==========================================
 // Puerto y Encendido
 // ==========================================
