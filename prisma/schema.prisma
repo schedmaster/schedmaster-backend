@@ -67,6 +67,7 @@ model Usuario {
   propuestas           Propuesta[]
   bitacora BitacoraEntrada[]
   loginChallenges2FA   LoginChallenge2FA[]
+  rutinas              Rutina[]
 }
 
 model LoginChallenge2FA {
@@ -245,4 +246,40 @@ model BitacoraEntrada {
   fecha        DateTime @default(now())
 
   usuario Usuario @relation(fields: [id_usuario], references: [id_usuario])
+}
+
+model Rutina {
+  id_rutina           Int      @id @default(autoincrement())
+  id_usuario          Int
+  nombre              String
+  descripcion         String?
+  id_rutina_origen    Int?
+  fecha_creacion      DateTime @default(now())
+  fecha_actualizacion DateTime @updatedAt
+
+  usuario Usuario @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade)
+  origen  Rutina?  @relation("RutinaOrigen", fields: [id_rutina_origen], references: [id_rutina], onDelete: SetNull)
+  copias  Rutina[] @relation("RutinaOrigen")
+
+  ejercicios RutinaEjercicio[]
+
+  @@index([id_usuario])
+  @@index([id_rutina_origen])
+  @@map("rutina")
+}
+
+model RutinaEjercicio {
+  id_rutina_ejercicio Int     @id @default(autoincrement())
+  id_rutina           Int
+  nombre_ejercicio    String
+  series              Int?
+  repeticiones        String?
+  descanso_segundos   Int?
+  notas               String?
+  orden               Int     @default(0)
+
+  rutina Rutina @relation(fields: [id_rutina], references: [id_rutina], onDelete: Cascade)
+
+  @@index([id_rutina])
+  @@map("rutina_ejercicio")
 }
