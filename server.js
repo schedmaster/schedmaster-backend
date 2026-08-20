@@ -153,8 +153,13 @@ const anuncioRoutes = require('./src/routes/anuncio.routes');
 
 app.use('/api/anuncios', anuncioRoutes);
 
-// SOLO esto (sin volver a declarar express)
-app.use('/imagenes', express.static('public/imagenes'));
+// Imagenes publicas de anuncios. Se permite cross-origin porque el frontend
+// corre en otro origen durante desarrollo y en despliegue.
+app.use('/imagenes', express.static('public/imagenes', {
+  setHeaders(res) {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  }
+}));
 
 const neuronaRoutes = require('./src/routes/neurona.routes')
 app.use('/api/neurona', neuronaRoutes)

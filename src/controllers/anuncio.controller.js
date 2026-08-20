@@ -1,9 +1,8 @@
 const { PrismaClient } = require('@prisma/client');
+const { uploadAnnouncementImage } = require('../services/cloudinary.service');
+
 const prisma = new PrismaClient();
 
-/* =========================
-   CREAR ANUNCIO
-=========================*/
 exports.crearAnuncio = async (req, res) => {
   try {
     const {
@@ -14,31 +13,33 @@ exports.crearAnuncio = async (req, res) => {
       activo
     } = req.body;
 
+    const uploadedImage = req.file
+      ? await uploadAnnouncementImage(req.file)
+      : null;
+
     const nuevo = await prisma.anuncio.create({
       data: {
         titulo,
         descripcion,
         prioridad,
-        fotografia: req.file ? req.file.filename : null, // 🔥 AQUÍ ESTÁ EL FIX
-        fecha_publicacion: fecha_publicacion 
-          ? new Date(fecha_publicacion) 
+        fotografia: uploadedImage?.secureUrl || null,
+        fecha_publicacion: fecha_publicacion
+          ? new Date(fecha_publicacion)
           : new Date(),
         activo: activo ?? true
       }
     });
 
     res.status(201).json(nuevo);
-
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error al crear anuncio' });
+    console.error('ERROR CREATE ANUNCIO:', error);
+    res.status(500).json({
+      message: 'Error al crear anuncio',
+      details: error.message
+    });
   }
 };
 
-
-/* =========================
-   OBTENER ANUNCIOS
-=========================*/
 exports.obtenerAnuncios = async (req, res) => {
   try {
     const anuncios = await prisma.anuncio.findMany({
@@ -46,20 +47,15 @@ exports.obtenerAnuncios = async (req, res) => {
     });
 
     res.json(anuncios);
-
   } catch (error) {
-    console.error(error);
+    console.error('ERROR GET ANUNCIOS:', error);
     res.status(500).json({ message: 'Error al obtener anuncios' });
   }
 };
-/* =========================
-   ELIMINAR ANUNCIO
-=========================*/
+
 exports.eliminarAnuncio = async (req, res) => {
   try {
     const { id } = req.params;
-
-    console.log("ID recibido:", id);
 
     const eliminado = await prisma.anuncio.deleteMany({
       where: {
@@ -72,16 +68,19 @@ exports.eliminarAnuncio = async (req, res) => {
     }
 
     res.json({ message: 'Anuncio eliminado correctamente' });
-
   } catch (error) {
-    console.error("ERROR DELETE:", error);
+    console.error('ERROR DELETE ANUNCIO:', error);
     res.status(500).json({ message: 'Error al eliminar anuncio' });
   }
 };
+
 exports.actualizarAnuncio = async (req, res) => {
   try {
     const { id } = req.params;
     const { titulo, descripcion, prioridad } = req.body;
+    const uploadedImage = req.file
+      ? await uploadAnnouncementImage(req.file)
+      : null;
 
     const actualizado = await prisma.anuncio.update({
       where: {
@@ -91,14 +90,16 @@ exports.actualizarAnuncio = async (req, res) => {
         titulo,
         descripcion,
         prioridad,
-        fotografia: req.file ? req.file.filename : undefined // 🔥 clave
+        fotografia: uploadedImage?.secureUrl || undefined
       }
     });
 
     res.json(actualizado);
-
   } catch (error) {
-    console.error("ERROR UPDATE:", error);
-    res.status(500).json({ message: 'Error al actualizar anuncio' });
+    console.error('ERROR UPDATE ANUNCIO:', error);
+    res.status(500).json({
+      message: 'Error al actualizar anuncio',
+      details: error.message
+    });
   }
 };

@@ -1,20 +1,11 @@
 const multer = require('multer');
-const { randomUUID } = require('node:crypto');
 const path = require('node:path');
 
 const IMAGE_UPLOAD_LIMIT_BYTES = 5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ALLOWED_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 
-const storage = multer.diskStorage({
-  destination: 'public/imagenes/',
-
-  filename: (req, file, cb) => {
-    const extension = path.extname(file.originalname).toLowerCase();
-    const uniqueName = `${randomUUID()}${extension}`;
-    cb(null, uniqueName);
-  },
-});
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   const extension = path.extname(file.originalname).toLowerCase();
