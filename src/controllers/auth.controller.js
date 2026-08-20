@@ -208,11 +208,11 @@ exports.register = async (req, res) => {
     const input = req.body;
     const correoNormalizado = input.correo.toLowerCase().trim();
 
-    if (!correoNormalizado.endsWith('@uteq.edu.mx')) {
-      return res.status(400).json({
-        message: 'Solo se permiten correos institucionales (@uteq.edu.mx)'
-      });
-    }
+    // if (!correoNormalizado.endsWith('@uteq.edu.mx')) {
+    //   return res.status(400).json({
+    //     message: 'Solo se permiten correos institucionales (@uteq.edu.mx)'
+    //   });
+    // }
 
     if (!esContrasenaValida(input.password)) {
       return res.status(400).json({
