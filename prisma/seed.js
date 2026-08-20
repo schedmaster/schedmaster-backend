@@ -74,7 +74,9 @@ async function seedCatalogs() {
       { id_dia: 2, nombre: 'Martes' },
       { id_dia: 3, nombre: 'Miercoles' },
       { id_dia: 4, nombre: 'Jueves' },
-      { id_dia: 5, nombre: 'Viernes' }
+      { id_dia: 5, nombre: 'Viernes' },
+      { id_dia: 6, nombre: 'Sabado' },
+      { id_dia: 7, nombre: 'Domingo' }
     ],
     skipDuplicates: true
   });

@@ -1,5 +1,37 @@
 const prisma = require('../../prisma/client');
 
+async function validarDiasExistentes(dias) {
+  if (!Array.isArray(dias) || dias.length === 0) {
+    const error = new Error('Selecciona al menos un dia para el horario');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const diasIds = [...new Set(dias.map(id => Number(id)))];
+  const diasInvalidos = diasIds.filter(id => !Number.isInteger(id) || id <= 0);
+
+  if (diasInvalidos.length > 0) {
+    const error = new Error('La seleccion de dias contiene valores invalidos');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const existentes = await prisma.dia.findMany({
+    where: { id_dia: { in: diasIds } },
+    select: { id_dia: true }
+  });
+  const existentesSet = new Set(existentes.map(dia => dia.id_dia));
+  const noEncontrados = diasIds.filter(id => !existentesSet.has(id));
+
+  if (noEncontrados.length > 0) {
+    const error = new Error(`Los dias seleccionados no existen: ${noEncontrados.join(', ')}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return diasIds;
+}
+
 // ==========================================
 // 1. OBTENER TODOS LOS HORARIOS (CON FILTROS)
 // ==========================================
@@ -62,6 +94,8 @@ exports.createHorario = async (req, res) => {
       return res.status(400).json({ message: "Faltan datos obligatorios (Periodo, Horas o Días)" });
     }
 
+    const diasIds = await validarDiasExistentes(dias);
+
     const nuevoHorario = await prisma.horario.create({
       data: {
         id_periodo: Number(id_periodo),
@@ -70,7 +104,7 @@ exports.createHorario = async (req, res) => {
         tipo_actividad: tipo_actividad || 'Gimnasio',
         capacidad_maxima: Number(capacidad_maxima),
         horarioDias: {
-          create: dias.map(id_dia => ({ id_dia: Number(id_dia) }))
+          create: diasIds.map(id_dia => ({ id_dia }))
         }
       },
       include: { horarioDias: true }
@@ -79,7 +113,7 @@ exports.createHorario = async (req, res) => {
     res.status(201).json({ message: 'Horario creado exitosamente', horario: nuevoHorario });
   } catch (error) {
     console.error('❌ ERROR DETALLADO AL CREAR HORARIO:', error);
-    res.status(500).json({ message: 'Error al crear el horario', detalles: error.message });
+    res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : 'Error al crear el horario', detalles: error.message });
   }
 };
 
@@ -90,6 +124,7 @@ exports.updateHorario = async (req, res) => {
   try {
     const { id } = req.params;
     const { id_periodo, hora_inicio, hora_fin, tipo_actividad, capacidad_maxima, dias } = req.body;
+    const diasIds = dias ? await validarDiasExistentes(dias) : [];
 
     const horarioActualizado = await prisma.horario.update({
       where: { id_horario: Number(id) },
@@ -102,7 +137,7 @@ exports.updateHorario = async (req, res) => {
         ...(dias && dias.length > 0 && {
           horarioDias: {
             deleteMany: {}, 
-            create: dias.map(id_dia => ({ id_dia: Number(id_dia) })) 
+            create: diasIds.map(id_dia => ({ id_dia })) 
           }
         })
       },
@@ -112,7 +147,7 @@ exports.updateHorario = async (req, res) => {
     res.json({ message: 'Horario actualizado correctamente', horario: horarioActualizado });
   } catch (error) {
     console.error('❌ ERROR ACTUALIZANDO HORARIO:', error);
-    res.status(500).json({ message: 'Error al actualizar el horario', detalles: error.message });
+    res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : 'Error al actualizar el horario', detalles: error.message });
   }
 };
 

@@ -1,6 +1,52 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+function parseRequiredDate(value, fieldName) {
+  const date = new Date(value);
+
+  if (!value || Number.isNaN(date.getTime())) {
+    const error = new Error(`${fieldName} es requerida y debe ser una fecha valida`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return date;
+}
+
+async function resolveEntrenadorId(idEntrenador) {
+  const parsedId = Number.parseInt(idEntrenador, 10);
+
+  if (Number.isInteger(parsedId) && parsedId > 0) {
+    const usuario = await prisma.usuario.findFirst({
+      where: {
+        id_usuario: parsedId,
+        activo: true,
+        id_rol: { in: [3, 4] }
+      },
+      select: { id_usuario: true }
+    });
+
+    if (usuario) return usuario.id_usuario;
+  }
+
+  const fallback = await prisma.usuario.findFirst({
+    where: {
+      activo: true,
+      id_rol: { in: [3, 4] }
+    },
+    orderBy: { id_usuario: 'asc' },
+    select: { id_usuario: true }
+  });
+
+  if (!fallback) {
+    const error = new Error('No existe un entrenador o administrador activo para asociar la convocatoria');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return fallback.id_usuario;
+}
+
 /* =========================
    CREAR PERIODO
 =========================*/
@@ -16,15 +62,17 @@ exports.crearPeriodo = async (req, res) => {
       id_entrenador
     } = req.body;
 
+    const entrenadorId = await resolveEntrenadorId(id_entrenador);
+
     const nuevo = await prisma.periodo.create({
       data: {
         nombre_periodo,
-        fecha_inicio_inscripcion: new Date(fecha_inicio_inscripcion),
-        fecha_fin_inscripcion: new Date(fecha_fin_inscripcion),
-        fecha_inicio_actividades: new Date(fecha_inicio_actividades),
-        fecha_fin_periodo: new Date(fecha_fin_periodo),
+        fecha_inicio_inscripcion: parseRequiredDate(fecha_inicio_inscripcion, 'fecha_inicio_inscripcion'),
+        fecha_fin_inscripcion: parseRequiredDate(fecha_fin_inscripcion, 'fecha_fin_inscripcion'),
+        fecha_inicio_actividades: parseRequiredDate(fecha_inicio_actividades, 'fecha_inicio_actividades'),
+        fecha_fin_periodo: parseRequiredDate(fecha_fin_periodo, 'fecha_fin_periodo'),
         estado,
-        id_entrenador
+        id_entrenador: entrenadorId
       }
     });
 
@@ -32,7 +80,7 @@ exports.crearPeriodo = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error crearPeriodo:', error);
-    res.status(500).json({ message: 'Error al crear convocatoria' });
+    res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : 'Error al crear convocatoria' });
   }
 };
 
@@ -99,17 +147,19 @@ exports.actualizarPeriodo = async (req, res) => {
       return res.status(404).json({ message: 'Periodo no encontrado' });
     }
 
+    const entrenadorId = await resolveEntrenadorId(id_entrenador || periodoAntes.id_entrenador);
+
     // ✏️ Actualizar periodo
     const actualizado = await prisma.periodo.update({
       where: { id_periodo: Number.parseInt(id) },
       data: {
         nombre_periodo,
-        fecha_inicio_inscripcion: new Date(fecha_inicio_inscripcion),
-        fecha_fin_inscripcion: new Date(fecha_fin_inscripcion),
-        fecha_inicio_actividades: new Date(fecha_inicio_actividades),
-        fecha_fin_periodo: new Date(fecha_fin_periodo),
+        fecha_inicio_inscripcion: parseRequiredDate(fecha_inicio_inscripcion, 'fecha_inicio_inscripcion'),
+        fecha_fin_inscripcion: parseRequiredDate(fecha_fin_inscripcion, 'fecha_fin_inscripcion'),
+        fecha_inicio_actividades: parseRequiredDate(fecha_inicio_actividades, 'fecha_inicio_actividades'),
+        fecha_fin_periodo: parseRequiredDate(fecha_fin_periodo, 'fecha_fin_periodo'),
         estado,
-        id_entrenador
+        id_entrenador: entrenadorId
       }
     });
 
@@ -181,6 +231,6 @@ exports.actualizarPeriodo = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error actualizarPeriodo:', error);
-    res.status(500).json({ message: 'Error al actualizar convocatoria' });
+    res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : 'Error al actualizar convocatoria' });
   }
 };
