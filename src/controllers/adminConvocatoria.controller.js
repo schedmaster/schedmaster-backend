@@ -146,16 +146,21 @@ exports.crearPeriodo = async (req, res) => {
 =========================*/
 exports.obtenerPeriodos = async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, estado } = req.query;
 
     const where = {};
+
+    const estadoNormalizado = String(estado || '').trim().toLowerCase();
+    if (['activo', 'inactivo'].includes(estadoNormalizado)) {
+      where.estado = estadoNormalizado;
+    }
 
     if (q && String(q).trim() !== '') {
       const textoBusqueda = String(q).trim();
       const posibleId = Number.parseInt(textoBusqueda, 10);
 
       where.OR = [
-        { nombre_periodo: { contains: textoBusqueda } }
+        { nombre_periodo: { contains: textoBusqueda, mode: 'insensitive' } }
       ];
 
       if (!Number.isNaN(posibleId)) {
