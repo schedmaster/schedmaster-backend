@@ -1,35 +1,195 @@
 ﻿require("dotenv").config();
 
+const DISABLE_MAILER = ['1', 'true', 'yes'].includes(String(process.env.DISABLE_MAILER || '').toLowerCase());
+
+function parseEmailAddress(value) {
+  if (!value) return null;
+
+  const input = String(value).trim();
+  const match = input.match(/^(.*?)\s*<([^<>]+)>$/);
+
+  if (match) {
+    return {
+      name: match[1].replace(/^["']|["']$/g, '').trim(),
+      email: match[2].trim()
+    };
+  }
+
+  return { email: input };
+}
+
+function buildBrevoSender(from) {
+  const parsedFrom = parseEmailAddress(from);
+
+  return {
+    name: parsedFrom?.name || process.env.MAIL_FROM_NAME || "SchedMaster",
+    email: parsedFrom?.email || process.env.MAIL_FROM_EMAIL || "no-reply@example.invalid"
+  };
+}
+
 async function sendMail({ from, to, subject, text, html }) {
   try {
+    if (DISABLE_MAILER) {
+      console.log(`Correo omitido para ${to}`);
+      return null;
+    }
+
+    if (!process.env.BREVO_API_KEY) {
+      throw new Error('BREVO_API_KEY no configurada');
+    }
+
+    const payload = {
+      sender: buildBrevoSender(from),
+      to: [{ email: to }],
+      subject,
+      ...(html ? { htmlContent: html } : { textContent: text || '' })
+    };
+
     const res = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
+        "Accept": "application/json",
         "Content-Type": "application/json",
         "api-key": process.env.BREVO_API_KEY
       },
-      // redeploy
-      body: JSON.stringify({
-        sender: {
-          name: process.env.MAIL_FROM_NAME || "SchedMaster",
-          email: from || process.env.MAIL_FROM_EMAIL || "no-reply@example.invalid"
-        },
-        to: [{ email: to }],
-        subject,
-        textContent: text,
-        htmlContent: html
-      })
+      body: JSON.stringify(payload)
     });
 
     if (res.ok) {
-      console.log("Correo enviado correctamente");
-    } else {
-      const err = await res.json();
-      console.log("Error Mailer:", err);
+      const data = await res.json().catch(() => ({}));
+      console.log("Correo enviado correctamente", data.messageId || '');
+      return data;
     }
+
+    const err = await res.json().catch(() => ({}));
+    console.log("Error Mailer Brevo:", err);
+    return null;
   } catch (error) {
-    console.log("âŒ Error Mailer:", error);
+    console.log("Error Mailer Brevo:", error);
+    return null;
   }
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatTime(value) {
+  return String(value || '').substring(0, 5);
+}
+
+function getDiasTexto(diasSeleccionados = []) {
+  const dias = diasSeleccionados
+    .map(diaSeleccionado => diaSeleccionado.dia?.nombre)
+    .filter(Boolean);
+
+  return dias.length > 0 ? dias.join(', ') : 'No especificados';
+}
+
+async function sendInscripcionDecisionEmail({ to, name, status, horario, diasSeleccionados }) {
+  if (DISABLE_MAILER) {
+    console.log(`Correo de decision omitido para ${to}`);
+    return;
+  }
+
+  const appName = process.env.APP_NAME || "SchedMaster";
+  const isApproved = status === 'aprobado';
+  const safeName = escapeHtml(name || 'usuario');
+  const safeDias = escapeHtml(getDiasTexto(diasSeleccionados));
+  const safeInicio = escapeHtml(formatTime(horario?.hora_inicio));
+  const safeFin = escapeHtml(formatTime(horario?.hora_fin));
+  const frontendUrl = process.env.FRONTEND_URL || 'https://schedmaster-frontend.vercel.app';
+
+  const title = isApproved
+    ? 'Tu horario fue aprobado'
+    : 'Tu solicitud de horario fue rechazada';
+  const highlightColor = isApproved ? '#16a34a' : '#dc2626';
+  const intro = isApproved
+    ? 'Tu inscripcion fue aprobada. Ya puedes ingresar al sistema para consultar tu acceso y actividades.'
+    : 'Tu solicitud no pudo ser aprobada en esta ocasion. Si necesitas apoyo, contacta al equipo del gimnasio.';
+  const subject = isApproved
+    ? `${appName} - Horario aprobado`
+    : `${appName} - Horario rechazado`;
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #eee;padding:20px;border-radius:10px;color:#333;">
+      <h2 style="color:${highlightColor};margin-top:0;">${title} - ${appName}</h2>
+      <p>Hola <strong>${safeName}</strong>,</p>
+      <p>${intro}</p>
+      <div style="background:#f3f4f6;padding:15px;border-radius:8px;margin:20px 0;border-left:5px solid ${highlightColor};">
+        <p style="margin:5px 0;"><strong>Horario solicitado:</strong> ${safeInicio} - ${safeFin}</p>
+        <p style="margin:5px 0;"><strong>Dias:</strong> ${safeDias}</p>
+      </div>
+      <div style="text-align:center;margin:30px 0;">
+        <a href="${frontendUrl}/login"
+           style="background:#2563eb;color:white;padding:14px 25px;text-decoration:none;border-radius:5px;display:inline-block;font-weight:bold;">
+          Ir al sistema
+        </a>
+      </div>
+    </div>
+  `;
+
+  await sendMail({
+    to,
+    subject,
+    text: [
+      `Hola ${name || 'usuario'},`,
+      '',
+      intro,
+      `Horario solicitado: ${formatTime(horario?.hora_inicio)} - ${formatTime(horario?.hora_fin)}`,
+      `Dias: ${getDiasTexto(diasSeleccionados)}`,
+      '',
+      `Ingresa al sistema: ${frontendUrl}/login`
+    ].join('\n'),
+    html
+  });
+}
+
+async function sendListaEsperaConfirmacionEmail({ to }) {
+  if (DISABLE_MAILER) {
+    console.log(`Correo de confirmacion de lista de espera omitido para ${to}`);
+    return null;
+  }
+
+  const appName = process.env.APP_NAME || "SchedMaster";
+  const frontendUrl = process.env.FRONTEND_URL || 'https://schedmaster-frontend.vercel.app';
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;border:1px solid #eee;padding:20px;border-radius:10px;color:#333;">
+      <h2 style="color:#2563eb;margin-top:0;">Confirmacion de registro - ${appName}</h2>
+      <p>Hola,</p>
+      <p>Recibimos tu correo correctamente. Te notificaremos cuando se active una nueva convocatoria en la plataforma.</p>
+      <div style="background:#f3f4f6;padding:15px;border-radius:8px;margin:20px 0;border-left:5px solid #2563eb;">
+        <p style="margin:5px 0;"><strong>Correo registrado:</strong> ${escapeHtml(to)}</p>
+      </div>
+      <div style="text-align:center;margin:30px 0;">
+        <a href="${frontendUrl}"
+           style="background:#2563eb;color:white;padding:14px 25px;text-decoration:none;border-radius:5px;display:inline-block;font-weight:bold;">
+          Ir a SchedMaster
+        </a>
+      </div>
+    </div>
+  `;
+
+  return sendMail({
+    to,
+    subject: `${appName} - Confirmacion de lista de espera`,
+    text: [
+      'Hola,',
+      '',
+      'Recibimos tu correo correctamente.',
+      'Te notificaremos cuando se active una nueva convocatoria en la plataforma.',
+      '',
+      `Correo registrado: ${to}`,
+      `SchedMaster: ${frontendUrl}`
+    ].join('\n'),
+    html
+  });
 }
 
 async function sendLogin2FACodeEmail({ to, name, code, ttlMinutes }) {
@@ -121,9 +281,9 @@ async function sendConvocatoriaActivaEmail({ to, periodo }) {
                   <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:20px;">
                     <tr>
                       <td align="center">
-                        <a href="${process.env.FRONTEND_URL || 'https://schedmaster-frontend.vercel.app'}/login"
+                        <a href="${process.env.FRONTEND_URL || 'https://schedmaster-frontend.vercel.app'}/register"
                            style="background:#2563eb;color:#ffffff;padding:12px 20px;text-decoration:none;border-radius:5px;display:inline-block;">
-                          Ir al sistema
+                          Registrarme
                         </a>
                       </td>
                     </tr>
@@ -141,18 +301,22 @@ async function sendConvocatoriaActivaEmail({ to, periodo }) {
       </table>
     `;
 
-    await sendMail({
+    const result = await sendMail({
       to,
       subject: `${appName} - Convocatoria abierta`,
       html
     });
 
     console.log("âœ… Correo de convocatoria enviado");
+    return result;
   } catch (error) {
     console.error("âŒ Error enviando correo:", error);
+    return null;
   }
 }
 
 module.exports.sendLogin2FACodeEmail = sendLogin2FACodeEmail;
 module.exports.sendConvocatoriaActivaEmail = sendConvocatoriaActivaEmail;
+module.exports.sendInscripcionDecisionEmail = sendInscripcionDecisionEmail;
+module.exports.sendListaEsperaConfirmacionEmail = sendListaEsperaConfirmacionEmail;
 module.exports.sendMail = sendMail;

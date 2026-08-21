@@ -1,5 +1,6 @@
 const prisma = require('../../prisma/client')
 const { evaluarUsuario } = require('../lib/neurona')
+const { sendInscripcionDecisionEmail } = require('../lib/mailer')
 
 function getPrioridadByScore(score) {
   if (score === null) return 'normal';
@@ -27,6 +28,24 @@ function buildHorarioUsage(horario) {
       capacidad: horario.capacidad_maxima,
       disponibles: horario.capacidad_maxima - ocupados
     };
+  });
+}
+
+async function notifyInscripcionDecision(inscripcion, status) {
+  if (!inscripcion?.usuario?.correo) return;
+
+  const nombreCompleto = [
+    inscripcion.usuario.nombre,
+    inscripcion.usuario.apellido_paterno,
+    inscripcion.usuario.apellido_materno
+  ].filter(Boolean).join(' ');
+
+  await sendInscripcionDecisionEmail({
+    to: inscripcion.usuario.correo,
+    name: nombreCompleto || inscripcion.usuario.nombre,
+    status,
+    horario: inscripcion.horario,
+    diasSeleccionados: inscripcion.diasSeleccionados
   });
 }
 
@@ -179,13 +198,19 @@ exports.aceptarInscripcion = async (req, res) => {
         estado: 'aprobado',
         fecha_decision: new Date()
       },
-      include: { usuario: true }
+      include: {
+        usuario: true,
+        horario: true,
+        diasSeleccionados: { include: { dia: true } }
+      }
     })
 
     await prisma.usuario.update({
       where: { id_usuario: inscripcion.usuario.id_usuario },
       data: { activo: true }
     })
+
+    await notifyInscripcionDecision(inscripcion, 'aprobado')
 
     res.status(200).json({ message: 'Inscripción aprobada correctamente' })
 
@@ -207,13 +232,20 @@ exports.rechazarInscripcion = async (req, res) => {
       return res.status(400).json({ message: 'id_inscripcion requerido' })
     }
 
-    await prisma.inscripcion.update({
+    const inscripcion = await prisma.inscripcion.update({
       where: { id_inscripcion: Number.parseInt(id_inscripcion) },
       data: {
         estado: 'rechazado',
         fecha_decision: new Date()
+      },
+      include: {
+        usuario: true,
+        horario: true,
+        diasSeleccionados: { include: { dia: true } }
       }
     })
+
+    await notifyInscripcionDecision(inscripcion, 'rechazado')
 
     res.status(200).json({ message: 'Inscripción rechazada correctamente' })
 

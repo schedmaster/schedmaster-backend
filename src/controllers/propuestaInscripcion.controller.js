@@ -120,7 +120,6 @@ const enviarPropuesta = async (req, res) => {
     `
 
     await sendMail({
-      from: process.env.MAIL_FROM || "SchedMaster <onboarding@resend.dev>",
       to: correo,
       subject: 'Propuesta de horario para tu inscripción',
       html

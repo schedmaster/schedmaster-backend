@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const { sendConvocatoriaActivaEmail } = require('../lib/mailer');
 
 function parseRequiredDate(value, fieldName) {
   const date = new Date(value);
@@ -47,6 +48,57 @@ async function resolveEntrenadorId(idEntrenador) {
   return fallback.id_usuario;
 }
 
+async function sendListaEsperaConvocatoria(periodo) {
+  const pendientes = await prisma.listaEspera.findMany({
+    where: { estado: 'pendiente' }
+  });
+
+  console.log(`📧 Enviando a ${pendientes.length} correos`);
+
+  if (pendientes.length === 0) {
+    return { pendientes: 0, notificados: 0, fallidos: 0 };
+  }
+
+  const resultados = await Promise.all(
+    pendientes.map(async (usuario) => {
+      const result = await sendConvocatoriaActivaEmail({
+        to: usuario.correo,
+        periodo
+      });
+
+      return result ? usuario.id_lista : null;
+    })
+  );
+
+  const idsNotificados = resultados.filter(Boolean);
+
+  if (idsNotificados.length > 0) {
+    await prisma.listaEspera.updateMany({
+      where: { id_lista: { in: idsNotificados } },
+      data: { estado: 'notificado' }
+    });
+  }
+
+  const resumen = {
+    pendientes: pendientes.length,
+    notificados: idsNotificados.length,
+    fallidos: pendientes.length - idsNotificados.length
+  };
+
+  console.log(`✅ ${resumen.notificados} correos enviados y actualizados`);
+  return resumen;
+}
+
+function notifyListaEsperaConvocatoria(periodo) {
+  setTimeout(async () => {
+    try {
+      await sendListaEsperaConvocatoria(periodo);
+    } catch (err) {
+      console.error('❌ Error enviando correos:', err);
+    }
+  }, 0);
+}
+
 /* =========================
    CREAR PERIODO
 =========================*/
@@ -75,6 +127,10 @@ exports.crearPeriodo = async (req, res) => {
         id_entrenador: entrenadorId
       }
     });
+
+    if (estado === 'activo') {
+      notifyListaEsperaConvocatoria(nuevo);
+    }
 
     res.status(201).json(nuevo);
 
@@ -193,37 +249,7 @@ exports.actualizarPeriodo = async (req, res) => {
 
     // 📧 Si el periodo pasa a activo → notificar lista de espera
     if (periodoAntes.estado !== 'activo' && estado === 'activo') {
-      setTimeout(async () => {
-        try {
-          const { sendConvocatoriaActivaEmail } = require('../lib/mailer');
-
-          const pendientes = await prisma.listaEspera.findMany({
-            where: { estado: 'pendiente' }
-          });
-
-          console.log(`📧 Enviando a ${pendientes.length} correos`);
-
-          if (pendientes.length > 0) {
-            await Promise.all(
-              pendientes.map(usuario =>
-                sendConvocatoriaActivaEmail({
-                  to: usuario.correo,
-                  periodo: actualizado
-                })
-              )
-            );
-
-            await prisma.listaEspera.updateMany({
-              where: { estado: 'pendiente' },
-              data: { estado: 'notificado' }
-            });
-
-            console.log('✅ Correos enviados y actualizados');
-          }
-        } catch (err) {
-          console.error('❌ Error enviando correos:', err);
-        }
-      }, 0);
+      notifyListaEsperaConvocatoria(actualizado);
     }
 
     // ✅ Respuesta siempre
@@ -232,5 +258,41 @@ exports.actualizarPeriodo = async (req, res) => {
   } catch (error) {
     console.error('❌ Error actualizarPeriodo:', error);
     res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : 'Error al actualizar convocatoria' });
+  }
+};
+
+/* =========================
+   NOTIFICAR LISTA DE ESPERA
+=========================*/
+exports.notificarConvocatoriaActiva = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const idPeriodo = Number.parseInt(id, 10);
+
+    if (!Number.isInteger(idPeriodo) || idPeriodo <= 0) {
+      return res.status(400).json({ message: 'id de convocatoria invalido' });
+    }
+
+    const periodo = await prisma.periodo.findUnique({
+      where: { id_periodo: idPeriodo }
+    });
+
+    if (!periodo) {
+      return res.status(404).json({ message: 'Convocatoria no encontrada' });
+    }
+
+    if (periodo.estado !== 'activo') {
+      return res.status(409).json({ message: 'Solo se puede notificar una convocatoria activa' });
+    }
+
+    const resumen = await sendListaEsperaConvocatoria(periodo);
+
+    return res.json({
+      message: `Notificacion enviada a ${resumen.notificados} correo(s) pendiente(s)`,
+      ...resumen
+    });
+  } catch (error) {
+    console.error('❌ Error notificarConvocatoriaActiva:', error);
+    return res.status(500).json({ message: 'Error al notificar la convocatoria activa' });
   }
 };

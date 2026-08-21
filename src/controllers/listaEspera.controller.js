@@ -1,10 +1,12 @@
 const prisma = require('../../prisma/client');
+const { sendListaEsperaConfirmacionEmail } = require('../lib/mailer');
 
 exports.registrarCorreo = async (req, res) => {
   try {
     const { correo } = req.body;
+    const correoNormalizado = String(correo || '').toLowerCase().trim();
 
-    if (!correo) {
+    if (!correoNormalizado) {
       return res.status(400).json({ message: 'Correo requerido' });
     }
 
@@ -22,7 +24,7 @@ exports.registrarCorreo = async (req, res) => {
 
     // verificar duplicado
     const existe = await prisma.listaEspera.findUnique({
-      where: { correo }
+      where: { correo: correoNormalizado }
     });
 
     if (existe) {
@@ -32,8 +34,10 @@ exports.registrarCorreo = async (req, res) => {
     }
 
     const registro = await prisma.listaEspera.create({
-      data: { correo }
+      data: { correo: correoNormalizado }
     });
+
+    await sendListaEsperaConfirmacionEmail({ to: correoNormalizado });
 
     res.status(201).json({
       message: 'Correo registrado en lista de espera',

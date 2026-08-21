@@ -208,12 +208,6 @@ exports.register = async (req, res) => {
     const input = req.body;
     const correoNormalizado = input.correo.toLowerCase().trim();
 
-    // if (!correoNormalizado.endsWith('@uteq.edu.mx')) {
-    //   return res.status(400).json({
-    //     message: 'Solo se permiten correos institucionales (@uteq.edu.mx)'
-    //   });
-    // }
-
     if (!esContrasenaValida(input.password)) {
       return res.status(400).json({
         message: 'La contrasena debe tener al menos 8 caracteres, una mayuscula y un numero o simbolo especial'
